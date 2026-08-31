@@ -185,24 +185,28 @@ Fuera de alcance a proposito, es la Mision 06: registrar el voto (`POST /api/v1/
 
 ## Mision 06 - Registro De Voto Y Auditoria
 
-Estado: pendiente
+Estado: completada (2026-08-31)
 
-Objetivo: registrar votos de forma idempotente y trazable.
+Objetivo: registrar votos de forma idempotente y trazable, apoyandose en el motor de habilitacion de la Mision 05 sin reimplementarlo.
 
-Entregables:
+Entregables reales:
 
-- Endpoint `POST /api/v1/votaciones/{id}/votos`.
-- Validacion de votacion abierta.
-- Validacion de unidad electoral disponible.
-- Registro de voto con fecha, celular consultado y persona emisora.
-- Pruebas de doble voto.
+- `backend/app/services/voto.py`: `registrar_voto(db, *, votacion_id, celular_consultado, unidad_electoral_id, opcion_id, emitido_por_persona_id, canal=None)`. Valida en orden, cada paso con su propia excepcion: la `Votacion` del path existe y esta `ABIERTA` (`VotacionNoDisponibleError`, 409, mismo patron que DEC-015); la `UnidadElectoral` existe (`UnidadElectoralNoEncontradaError`, 404) y su estado es `HABILITADA` (`UnidadElectoralNoDisponibleError`, 409, con el estado real -- `BLOQUEADA_POR_INCIDENCIA`, `PENDIENTE_DEFINICION_POSTULANTES` o `PENDIENTE_DEFINICION_BAJA`); la `OpcionVoto` existe y pertenece a esa votacion (`OpcionInvalidaError`, 400); el `celular_consultado` normalizado (`normalizar_celular`, reusada de la Mision 04) efectivamente resuelve a `unidad_electoral_id` (`CelularNoResuelveUnidadError`, 400); `emitido_por_persona_id` es uno de los integrantes del matrimonio (`MATRIMONIO_CONSAGRADO`) o un jefe de ese circulo especifico (`BLOQUE_NO_CONSAGRADO`) (`PersonaNoAutorizadaError`, 400); y no existe ya un `Voto` para `(votacion_id, unidad_electoral_id)` (`VotoDuplicadoError`, 409, chequeado antes de insertar y de nuevo via `try/except IntegrityError` alrededor del commit, para la carrera de dos requests simultaneas que pasan el chequeo previo a la vez).
+- `backend/app/services/habilitacion.py`: `_unidades_candidatas` paso a llamarse `unidades_candidatas` (publica, sin guion bajo) para que la Mision 06 la reuse tal cual en vez de duplicar la resolucion de que unidades corresponden a un celular; sin cambio de conducta.
+- `backend/app/schemas/voto.py`: `VotoRequest` (`celular_consultado`, `unidad_electoral_id`, `opcion_id`, `emitido_por_persona_id` -- obligatorio en el schema aunque la columna del modelo sea nullable, para que la trazabilidad real siempre venga completa --, `canal` opcional) y `VotoResponse` (`id`, `votacion_id`, `unidad_electoral_id`, `opcion_id`, `emitido_por_persona_id`, `celular_consultado`, `fecha_emision`, `canal` -- sin ningun conteo ni dato agregado por opcion, `REGLAS_NEGOCIO.md` prohibe exponer resultados antes del cierre).
+- `POST /api/v1/votaciones/{votacion_id}/votos` (`backend/app/api/v1/endpoints/votos.py`, registrado en `app/api/v1/api.py`): `201` con el `Voto` creado; `404` si la unidad electoral no existe; `409` si la votacion no existe/no esta abierta, si la unidad no esta `HABILITADA` o si ya hay un voto para esa unidad; `400` si la opcion no es de esa votacion, si el celular no resuelve a la unidad, o si la persona emisora no esta autorizada.
+- `backend/tests/test_voto.py`: 15 pruebas contra el servicio, datos armados con los modelos SQLAlchemy (reusa los helpers de `test_habilitacion.py`) -- voto exitoso con todos los campos de auditoria, segundo intento sobre la misma unidad (409, sin segunda fila), carrera de dos inserts simultaneos resuelta por la restriccion unica de base y mapeada a 409 (bypaseando el chequeo previo con `monkeypatch` para forzar el camino del `IntegrityError`), votacion en `BORRADOR`/`CERRADA`/inexistente (409), unidad en cada estado no disponible citando el estado real (409) y unidad inexistente (404), opcion de otra votacion (400), celular que no resuelve a la unidad (400), persona no autorizada -- ajena al matrimonio, o integrante del circulo pero no jefe (400) --, y jefe consagrado con doble rol emitiendo dos votos independientes y exitosos. `backend/tests/test_voto_endpoint.py`: 3 pruebas del endpoint HTTP (201, 409 por doble voto, 409 sin votacion abierta).
+
+Decision nueva: DEC-020 (el doble rol de jefe consagrado, DEC-014, se permite sin restriccion adicional -- dos requests, dos votos independientes -- hasta que el negocio resuelva esa decision pendiente; y el endpoint no tiene ningun control de acceso todavia, queda como pendiente explicito por ser una zona sensible segun `AGENTS.md`).
 
 Criterios de aceptacion:
 
-- Una unidad electoral no puede votar dos veces en la misma votacion.
-- No se puede votar si la votacion esta cerrada.
-- No se puede votar con una unidad electoral bloqueada por incidencia.
-- Cada voto conserva datos suficientes para auditoria.
+- Cumplido: una unidad electoral no puede votar dos veces en la misma votacion, tanto por el chequeo previo (`VotoDuplicadoError` antes de insertar) como por la restriccion unica de base como ultima linea de defensa ante una carrera (`test_segundo_intento_sobre_misma_unidad_da_409_y_no_crea_segunda_fila`, `test_carrera_de_dos_inserts_simultaneos_se_resuelve_como_409_no_500`).
+- Cumplido: no se puede votar si la votacion esta en `BORRADOR`, `CERRADA` o no existe (`test_votacion_no_abierta_da_409`, `test_votacion_inexistente_da_409`).
+- Cumplido: no se puede votar con una unidad electoral bloqueada por incidencia ni con ninguna otra que no este `HABILITADA` (`test_unidad_no_habilitada_da_409_citando_estado_real`).
+- Cumplido: cada voto conserva `fecha_emision`, `celular_consultado` y `emitido_por_persona_id` para auditoria (`test_voto_exitoso_se_persiste_con_datos_de_auditoria`).
+
+Pendiente para el negocio, no bloquea la Mision 07: doble rol de jefes consagrados (DEC-014, ver DEC-020) y control de acceso sobre este endpoint (tambien DEC-020, distinto del panel administrativo que cubrira la Mision 07).
 
 ## Mision 07 - Administracion De Votacion
 
@@ -307,4 +311,4 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-La siguiente mision recomendada es la Mision 06: Registro De Voto Y Auditoria, sobre el motor de habilitacion por celular ya construido en la Mision 05.
+La siguiente mision recomendada es la Mision 07: Administracion De Votacion, para poder abrir y cerrar votaciones por endpoint (hoy es un `INSERT`/`UPDATE` manual, DEC-018) y para definir el control de acceso pendiente sobre `POST /api/v1/votaciones/{id}/votos` (DEC-020).

@@ -84,13 +84,17 @@ def _incidencias_criticas_grupo(db: Session, grupo_id: int) -> list[IncidenciaPa
     )
 
 
-def _unidades_candidatas(db: Session, personas: list[Persona]) -> dict[int, UnidadElectoral]:
+def unidades_candidatas(db: Session, personas: list[Persona]) -> dict[int, UnidadElectoral]:
     """Unidades candidatas de todas las personas encontradas, dedupeadas por id.
 
     Dos conyuges que comparten celular (DEC-008) resuelven al mismo matrimonio
     y por lo tanto a la misma unidad: el dict por id evita ofrecerla dos veces.
     Un jefe consagrado con doble rol (DEC-014) aporta dos unidades distintas
     (su matrimonio y el bloque que lidera), que quedan separadas.
+
+    Publica (sin guion bajo) porque la Mision 06 (`app/services/voto.py`) la
+    reusa para confirmar que el celular declarado en el voto efectivamente
+    resuelve a la unidad electoral indicada, sin duplicar esta logica.
     """
     unidades: dict[int, UnidadElectoral] = {}
     for persona in personas:
@@ -184,10 +188,10 @@ def consultar_habilitacion(db: Session, celular: str) -> HabilitacionConsultaRes
             celular_normalizado=celular_normalizado, habilitado=False
         )
 
-    unidades_candidatas = _unidades_candidatas(db, personas)
+    candidatas = unidades_candidatas(db, personas)
     unidades_respuesta = [
         _evaluar_unidad(db, votacion, unidad)
-        for unidad in sorted(unidades_candidatas.values(), key=lambda u: u.id)
+        for unidad in sorted(candidatas.values(), key=lambda u: u.id)
     ]
 
     return HabilitacionConsultaResponse(
