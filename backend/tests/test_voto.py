@@ -228,7 +228,10 @@ def test_unidad_inexistente_da_404(db_session):
 
 def test_opcion_de_otra_votacion_da_400(db_session):
     votacion = _votacion_abierta(db_session)
-    otra_votacion = Votacion(nombre="Otra Votacion", estado=EstadoVotacion.ABIERTA)
+    # BORRADOR, no ABIERTA: a partir de la Mision 07 solo puede haber una
+    # votacion ABIERTA a la vez (indice unico parcial `uq_votacion_estado_abierta`).
+    # Esta prueba solo necesita una `Votacion` distinta, no que este abierta.
+    otra_votacion = Votacion(nombre="Otra Votacion", estado=EstadoVotacion.BORRADOR)
     db_session.add(otra_votacion)
     db_session.flush()
     persona = _persona(db_session, "Ana", "Gomez", "0981000001")

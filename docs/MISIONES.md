@@ -210,22 +210,28 @@ Pendiente para el negocio, no bloquea la Mision 07: doble rol de jefes consagrad
 
 ## Mision 07 - Administracion De Votacion
 
-Estado: pendiente
+Estado: completada (2026-08-31)
 
-Objetivo: permitir administrar apertura, monitoreo operativo, cierre y revelacion.
+Objetivo: permitir crear una votacion con sus opciones, abrirla, cerrarla y consultar su estado operativo, cerrando dos gaps que quedaban abiertos: no existia ningun endpoint para crear una `Votacion`/`OpcionVoto` (todo se armaba por ORM en tests), y el modelo no registraba quien abrio o cerro la votacion.
 
-Entregables:
+Entregables reales:
 
-- Endpoints de abrir y cerrar votacion.
-- Estado operativo de votacion.
-- Conteos de habilitados, emitidos y pendientes.
-- Control de acceso administrativo inicial.
+- `backend/app/models/votacion.py`: columnas nuevas `abierta_por`/`cerrada_por` (`String(255)` nullable, texto libre -- no hay sistema de identidad todavia, DEC-021) mas `uq_votacion_estado_abierta`, un indice unico parcial sobre `estado` (valido solo mientras `estado = 'ABIERTA'`, via `sqlite_where`/`postgresql_where`) que refuerza en base la invariante de DEC-018 ("una sola votacion ABIERTA a la vez"), mismo patron de defensa en profundidad que el UNIQUE de `votos` (Mision 06).
+- `backend/alembic/versions/6d2b5dd756ef_administracion_de_votacion.py`: migracion que agrega esas dos columnas y ese indice sobre la migracion previa (`b02555d5ef5b`).
+- `backend/app/core/config.py` + `backend/.env.example`: `ADMIN_API_KEY` (default vacio). `backend/app/api/deps.py`: `require_admin`, dependencia de FastAPI que compara el header `X-Admin-Token` contra ese valor; si `ADMIN_API_KEY` esta vacio rechaza con `403` (falla cerrado), con token ausente o incorrecto responde `401` (DEC-021).
+- `backend/app/services/votacion.py`: `crear_votacion`, `agregar_opcion` (exige `estado == BORRADOR`, `VotacionNoEsBorradorError` si no), `listar_opciones`, `abrir_votacion` (exige `BORRADOR`, al menos una `OpcionVoto` y ninguna otra `Votacion` `ABIERTA` -- cada validacion con su propia excepcion; comit envuelto en `try/except IntegrityError` por el indice unico parcial, igual patron que `registrar_voto` de la Mision 06), `cerrar_votacion` (exige `ABIERTA`) y `obtener_estado_operativo` (conteo de `unidades_electorales` por los cuatro estados de `EstadoUnidadElectoral`, votos emitidos de esa votacion, pendientes = habilitadas - emitidos; nunca nada agrupado por `opcion_id`).
+- `backend/app/schemas/votacion.py` + `backend/app/api/v1/endpoints/votaciones.py` (registrado en `app/api/v1/api.py`), router completo protegido por `require_admin` a nivel de router: `POST /api/v1/votaciones` (201, BORRADOR), `POST` y `GET /api/v1/votaciones/{id}/opciones` (opciones se cargan en un endpoint separado del de creacion; 409 si la votacion ya salio de BORRADOR), `POST /api/v1/votaciones/{id}/abrir` (requiere `usuario` en el body; 404/409 segun corresponda), `POST /api/v1/votaciones/{id}/cerrar` (requiere `usuario`; 404/409), `GET /api/v1/votaciones/{id}/estado` (estado operativo, sin nada por opcion). `POST /api/v1/habilitaciones/consultar` y `POST /api/v1/votaciones/{id}/votos` quedan sin este control a proposito (DEC-020, DEC-021).
+- `backend/tests/test_votacion.py` (22 pruebas contra el servicio) y `backend/tests/test_votacion_endpoint.py` (7 pruebas HTTP): creacion en BORRADOR, opcion rechazada fuera de BORRADOR, abrir sin opciones (409), abrir con opciones y sin otra abierta (200, `abierta_por`/`fecha_apertura` seteados), abrir con otra ya ABIERTA (409, chequeo de servicio) mas la carrera de dos aperturas simultaneas resuelta por el indice unico de base (`monkeypatch` bypasea el chequeo previo, inserta una segunda `ABIERTA` por fuera, confirma 409 no 500), cerrar una ABIERTA (200, `cerrada_por`/`fecha_cierre`), cerrar BORRADOR/CERRADA (409), estado operativo con conteos correctos y una prueba explicita de que la respuesta no expone ninguna clave relacionada a `opcion`, control de acceso (403 sin `ADMIN_API_KEY` configurado, 401 sin token o con token incorrecto, 201 con el correcto), y una prueba dedicada que confirma que `/habilitaciones/consultar` y `/votaciones/{id}/votos` siguen respondiendo sin token (no quedaron protegidos por accidente al conectar el router nuevo). Se ajusto ademas `test_voto.py::test_opcion_de_otra_votacion_da_400` (Mision 06), que armaba dos `Votacion` `ABIERTA` a la vez para un caso que no lo necesitaba: paso a violar el indice unico parcial nuevo.
+
+Decision nueva: DEC-021 (mecanismo administrativo inicial via `ADMIN_API_KEY`, explicitamente no un sistema de usuarios; alcance exacto de que protege y que no).
 
 Criterios de aceptacion:
 
-- Solo una votacion abierta puede recibir votos.
-- El cierre registra fecha, hora y usuario.
-- Antes del cierre no se devuelven resultados por opcion.
+- Cumplido: solo una votacion `ABIERTA` a la vez, reforzado tanto en servicio (`_confirmar_sin_otra_abierta`) como en base (`uq_votacion_estado_abierta`).
+- Cumplido: el cierre registra fecha (`fecha_cierre`), hora (mismo campo, `DateTime`) y usuario (`cerrada_por`).
+- Cumplido: antes del cierre -- de hecho, en cualquier momento -- `GET /votaciones/{id}/estado` no devuelve nada agrupado por `opcion_id`.
+
+Fuera de alcance a proposito, es la Mision 08 completa: revelacion de resultados y cualquier conteo por opcion.
 
 ## Mision 08 - Resultados
 
@@ -311,4 +317,4 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-La siguiente mision recomendada es la Mision 07: Administracion De Votacion, para poder abrir y cerrar votaciones por endpoint (hoy es un `INSERT`/`UPDATE` manual, DEC-018) y para definir el control de acceso pendiente sobre `POST /api/v1/votaciones/{id}/votos` (DEC-020).
+La siguiente mision recomendada es la Mision 08: Resultados, para revelar totales por opcion solo despues del cierre (`Votacion.estado == CERRADA`), apoyandose en `resultados_revelados_at` (ya en el modelo desde la Mision 03) y en los endpoints de administracion de la Mision 07 para decidir cuando una votacion esta en condiciones de revelarse. El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): no es parte de la Mision 08.
