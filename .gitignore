@@ -6,6 +6,10 @@ __pycache__/
 *.log
 pytest-cache-files-*/
 
+# Bases de datos locales (SQLite)
+*.db
+*.db-journal
+
 # Node / Vite
 node_modules/
 dist/

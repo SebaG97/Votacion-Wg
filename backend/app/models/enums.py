@@ -1,0 +1,66 @@
+"""Enums de dominio, mapeados como Enum generico de SQLAlchemy (no nativo de Postgres).
+
+`native_enum=False` hace que SQLAlchemy cree una columna VARCHAR con un CHECK
+constraint tanto en SQLite como en PostgreSQL, en lugar de un tipo `CREATE TYPE`
+nativo de Postgres. Esto evita el costo de migraciones ALTER TYPE al agregar
+valores y mantiene el esquema identico entre los dos motores.
+"""
+
+from enum import Enum
+
+
+class EstadoPersona(str, Enum):
+    ACTIVA = "ACTIVA"
+    BAJA_NO_ML = "BAJA_NO_ML"
+    BAJA_OBSERVACION = "BAJA_OBSERVACION"
+
+
+class TipoUnidadElectoral(str, Enum):
+    MATRIMONIO_CONSAGRADO = "MATRIMONIO_CONSAGRADO"
+    BLOQUE_NO_CONSAGRADO = "BLOQUE_NO_CONSAGRADO"
+
+
+class EstadoVotacion(str, Enum):
+    BORRADOR = "BORRADOR"
+    ABIERTA = "ABIERTA"
+    CERRADA = "CERRADA"
+    RESULTADOS_REVELADOS = "RESULTADOS_REVELADOS"
+
+
+class SeveridadIncidencia(str, Enum):
+    CRITICA = "CRITICA"
+    ALTA = "ALTA"
+    MEDIA = "MEDIA"
+    BAJA = "BAJA"
+
+
+class TipoIncidenciaPadron(str, Enum):
+    """Taxonomia tomada de `backend/scripts/explorar_padron.py` (Mision 02).
+
+    No se inventan tipos nuevos: son los mismos ~20 que ya emite el script
+    explorador y que documentan `docs/PADRON_ANALISIS.md` / `padron_incidencias.csv`.
+    """
+
+    CELULAR_PLACEHOLDER = "CELULAR_PLACEHOLDER"
+    CELULAR_FORMATO_INVALIDO = "CELULAR_FORMATO_INVALIDO"
+    CELULAR_FALTANTE = "CELULAR_FALTANTE"
+    CELULAR_COMPARTIDO_CONYUGES = "CELULAR_COMPARTIDO_CONYUGES"
+    CELULAR_DUPLICADO = "CELULAR_DUPLICADO"
+    CELULAR_DUPLICADO_EN_LISTADO_JEFES = "CELULAR_DUPLICADO_EN_LISTADO_JEFES"
+    CELULAR_DISCREPANTE_ENTRE_HOJAS = "CELULAR_DISCREPANTE_ENTRE_HOJAS"
+    CI_FALTANTE = "CI_FALTANTE"
+    CI_COPIADA_ENTRE_CONYUGES = "CI_COPIADA_ENTRE_CONYUGES"
+    CI_DUPLICADA = "CI_DUPLICADA"
+    MATRIMONIO_SIN_ETIQUETA = "MATRIMONIO_SIN_ETIQUETA"
+    MATRIMONIO_INCOMPLETO = "MATRIMONIO_INCOMPLETO"
+    CONSAGRACION_INCONSISTENTE = "CONSAGRACION_INCONSISTENTE"
+    CONSAGRACION_SIN_DEFINIR = "CONSAGRACION_SIN_DEFINIR"
+    NOMBRE_COPIADO_ENTRE_CONYUGES = "NOMBRE_COPIADO_ENTRE_CONYUGES"
+    NOMBRE_NO_ALFABETICO = "NOMBRE_NO_ALFABETICO"
+    NOMBRE_DISCREPANTE_ENTRE_HOJAS = "NOMBRE_DISCREPANTE_ENTRE_HOJAS"
+    CIRCULO_FALTANTE = "CIRCULO_FALTANTE"
+    CIRCULO_ETIQUETA_VARIANTE = "CIRCULO_ETIQUETA_VARIANTE"
+    CIRCULO_SIN_JEFE = "CIRCULO_SIN_JEFE"
+    JEFE_SIN_PERSONA_EN_PADRON = "JEFE_SIN_PERSONA_EN_PADRON"
+    JEFE_SOLO_EN_LISTADO_JEFES = "JEFE_SOLO_EN_LISTADO_JEFES"
+    JEFE_SOLO_EN_HOJA_PRINCIPAL = "JEFE_SOLO_EN_HOJA_PRINCIPAL"

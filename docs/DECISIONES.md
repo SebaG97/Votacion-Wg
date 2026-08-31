@@ -115,3 +115,43 @@ Contexto: 22 de los 93 circulos no tienen ningun integrante con la marca `Jefes`
 Decision: La incidencia `CIRCULO_SIN_JEFE` se emite unicamente cuando el circulo tiene al menos un matrimonio no consagrado y ningun integrante marcado como jefe. Un circulo integramente consagrado sin jefe no es una incidencia.
 
 Consecuencias: Las incidencias criticas por falta de jefe bajan de 22 a 11, y esas 11 si representan un voto de bloque que hoy no tendria quien lo emita. La generacion de unidades electorales `BLOQUE_NO_CONSAGRADO` se hace por circulo con bloque no consagrado (54 circulos), no por circulo existente (93).
+
+## DEC-011 - Los Viudos Consagrados Conservan El Voto De Matrimonio
+
+Fecha: 2026-08-31
+
+Contexto: 29 de los 571 matrimonios tienen un solo integrante activo. De esos, 22 estan marcados como consagrados y quedaron viudos: el conyuge que sigue en el padron llevo el voto del matrimonio antes de enviudar, y la marca `Consagrados` del Excel se mantuvo sobre la persona sobreviviente (`PADRON_ANALISIS.md`, secciones 3.3 y 7, punto 1).
+
+Decision: Un matrimonio de un solo integrante marcado como consagrado conserva su derecho a un voto de `MATRIMONIO_CONSAGRADO`, emitido por la persona sobreviviente. No se exige un segundo integrante activo para generar la unidad electoral.
+
+Consecuencias: El total estimado de unidades `MATRIMONIO_CONSAGRADO` queda en 260 (238 de dos integrantes + 22 viudos), no en 238. El modelo de datos soporta esto de forma nativa: `matrimonios.integrante_2_id` es nullable (Mision 03), asi que un matrimonio viudo consagrado no requiere ningun tratamiento especial para generar su unidad electoral. Los 7 matrimonios restantes de un solo integrante que no estan marcados como consagrados siguen abiertos como incidencia `MATRIMONIO_INCOMPLETO` y no generan unidad electoral hasta que se resuelvan.
+
+## DEC-012 - Bajas De Personas (No ML U Observacion): Pendiente De Negocio
+
+Fecha: 2026-08-31
+
+Contexto: 118 personas tienen la marca estructurada `No ML` y 33 tienen una observacion textual libre de baja (`salieron`, `fallecio`, `ya no siguen`, entre otras). Ambos grupos siguen contados hoy en los matrimonios consagrados y no consagrados del padron (`PADRON_ANALISIS.md`, seccion 5.2 y seccion 7, punto 2). Falta que el negocio defina si estas personas -y, por extension, los matrimonios o bloques que dependen de ellas- quedan excluidos del padron votante.
+
+Decision: Pendiente. No se implementa ninguna exclusion automatica todavia.
+
+Consecuencias: El modelo ya distingue los dos motivos de baja en `personas.estado` (`ACTIVA` / `BAJA_NO_ML` / `BAJA_OBSERVACION`, Mision 03) mas el detalle textual en `personas.observacion_baja`, de modo que cuando el negocio resuelva esta decision, aplicarla es un filtro sobre datos ya modelados y no requiere una migracion adicional ni volver a importar el padron.
+
+## DEC-013 - Circulos De Postulantes: Pendiente De Negocio
+
+Fecha: 2026-08-31
+
+Contexto: 45 de los 93 circulos son de postulantes (matrimonios no consagrados en formacion). Falta que el negocio confirme si corresponde un voto de bloque `BLOQUE_NO_CONSAGRADO` por cada circulo de postulantes o si estos circulos no votan en esta eleccion (`PADRON_ANALISIS.md`, seccion 7, punto 3).
+
+Decision: Pendiente. La Mision 03 no genera ni excluye unidades electorales para circulos de postulantes; eso es trabajo del importador (Mision 04) una vez resuelta esta decision.
+
+Consecuencias: El modelo no necesita ningun campo ni migracion adicional para soportar cualquiera de los dos desenlaces: `unidades_electorales` ya admite crear o no crear una fila `BLOQUE_NO_CONSAGRADO` por circulo segun corresponda, controlado enteramente por la logica del importador de la Mision 04.
+
+## DEC-014 - Doble Rol De Jefes Consagrados: Pendiente De Negocio
+
+Fecha: 2026-08-31
+
+Contexto: 43 de los 74 matrimonios jefe son ademas consagrados: la persona tiene, en principio, dos unidades electorales disponibles (su propio matrimonio consagrado y el bloque no consagrado que lidera). El requerimiento contempla el caso pero falta confirmar si en esta votacion la persona emite los dos votos o debe elegir uno (`PADRON_ANALISIS.md`, seccion 7, punto 5; `REGLAS_NEGOCIO.md`, seccion "Habilitacion Por Celular").
+
+Decision: Pendiente. No se implementa restriccion alguna todavia; el motor de habilitacion (Mision 05) es quien debe aplicar la regla que el negocio confirme.
+
+Consecuencias: El modelo ya separa el derecho a voto de la persona mediante `unidades_electorales` (DEC-003), por lo que ambos desenlaces -emitir dos votos o forzar una eleccion entre las dos unidades- se resuelven en la logica de habilitacion y registro de voto (Misiones 05 y 06) sin cambios al esquema de base de datos.

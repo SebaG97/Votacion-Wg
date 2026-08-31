@@ -8,7 +8,7 @@ API y capa de negocio del sistema VOTACION WG.
 - FastAPI
 - Pydantic Settings
 - Pytest
-- SQLAlchemy, Alembic y PostgreSQL se incorporaran en la mision de modelo y migraciones.
+- SQLAlchemy 2.0 y Alembic (SQLite en local, PostgreSQL en produccion via `DATABASE_URL`).
 
 ## Estructura
 
@@ -68,6 +68,32 @@ Salidas: `docs/padron_incidencias.csv` y `docs/padron_estructura.json`.
 Lectura del informe: `docs/PADRON_ANALISIS.md`.
 
 Acepta `--excel` y `--salida` para apuntar a otro archivo o directorio.
+
+### Seed De Desarrollo
+
+Inserta un puñado de filas de ejemplo (no datos reales del padron) para
+probar el modelo: un matrimonio consagrado de dos integrantes, un viudo
+consagrado, un matrimonio sin marca de consagracion y un bloque no
+consagrado con jefe. Requiere que las migraciones ya hayan corrido.
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python scripts/seed_dev.py
+```
+
+## Base De Datos Y Migraciones
+
+`DATABASE_URL` (ver `.env.example`) resuelve SQLite en local o PostgreSQL en
+produccion; los mismos modelos y migraciones corren sobre los dos motores.
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+alembic upgrade head          # aplica todas las migraciones
+alembic downgrade base        # revierte todo (solo desarrollo)
+alembic revision -m "mensaje" # nueva migracion en blanco
+```
 
 ## Pruebas
 

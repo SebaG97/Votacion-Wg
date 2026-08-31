@@ -85,23 +85,41 @@ Pendiente para el negocio, no bloquea la Mision 03: viudos consagrados, personas
 
 ## Mision 03 - Modelo De Datos Y Migraciones
 
-Estado: pendiente
+Estado: completada (2026-08-31)
 
-Objetivo: implementar el modelo persistente inicial y migraciones de base de datos.
+Objetivo: implementar el modelo persistente inicial y migraciones de base de datos, ya ajustado a lo que el Excel real contiene (`PADRON_ANALISIS.md`, seccion 6.4) y no al modelo preliminar sin validar.
 
-Entregables:
+Entregables reales:
 
-- Modelos SQLAlchemy.
-- Migraciones Alembic.
-- Enums de estados y tipos de unidad electoral.
-- Restriccion unica de voto por `votacion_id` y `unidad_electoral_id`.
-- Seeds minimos para desarrollo si aplica.
+- `backend/app/models/`: modelos SQLAlchemy 2.0 (`DeclarativeBase`) para `Persona`, `Matrimonio`, `Grupo`, `UnidadElectoral`, `Votacion`, `OpcionVoto`, `Voto` e `IncidenciaPadron`, mas `enums.py` (enums de dominio) y `mixins.py` (`TimestampMixin` para `created_at`/`updated_at`).
+- `backend/app/db/`: `base_class.py` (`Base`), `session.py` (`engine`/`SessionLocal`/`get_db`, construidos desde `settings.database_url`; activa `PRAGMA foreign_keys=ON` por conexion cuando el motor es SQLite, porque SQLite no lo hace por defecto).
+- `backend/alembic/`: setup de Alembic con `env.py` leyendo `settings.database_url` (permite override programatico para pruebas) y `render_as_batch` activado en SQLite. Primera revision `19b5c6d93c4b_esquema_inicial.py` con las 8 tablas, sus indices y sus restricciones, mas `downgrade()` completo.
+- `backend/scripts/seed_dev.py`: seed minimo de desarrollo (no carga datos reales del padron, eso es la Mision 04) que ejercita un matrimonio consagrado de dos integrantes, un viudo consagrado, un matrimonio sin marca de consagracion y un bloque no consagrado con jefe.
+- `backend/tests/test_migrations.py` + `conftest.py`: 10 pruebas que corren `alembic upgrade head` / `downgrade base` sobre un SQLite descartable por test (no `create_all`) y verifican en base, no en codigo: unicidad de voto por `(votacion_id, unidad_electoral_id)`, nullability de `celular`/`documento`/`integrante_2_id`/`es_consagrado`, el CHECK constraint que genera el enum de `personas.estado`, la unicidad de `grupos.nombre_normalizado`, el CHECK de integrantes distintos en `matrimonios`, y que las foreign keys se aplican de verdad en SQLite.
+- `sqlalchemy`, `alembic` y `psycopg[binary]` agregados a `backend/requirements.txt` y `pyproject.toml` (no solo a `-dev`, porque el motor de base de datos es parte del runtime, no solo de las pruebas).
+
+Ajustes aplicados respecto al modelo preliminar (`PADRON_ANALISIS.md` 6.4):
+
+- `personas.celular` y `personas.documento`: nullable, sin `UNIQUE` en base. La duplicidad real se controla como incidencia de importacion (DEC-002, DEC-008), no como restriccion de base.
+- `matrimonios.integrante_2_id`: nullable, con `CHECK (integrante_2_id IS NULL OR integrante_1_id <> integrante_2_id)` para que nunca sea la misma persona dos veces. Soporta los 29 matrimonios de un solo integrante, incluidos los 22 viudos consagrados (DEC-011).
+- `matrimonios.es_consagrado`: `Boolean` nullable (tri-estado real: `True` / `False` / `NULL` = sin definir), sin `default`. Cubre los 19 matrimonios sin marca en el Excel.
+- `grupos.nombre_normalizado`: agregado ademas del `nombre` literal, con `UNIQUE` en base, para las 9 variantes de escritura del mismo circulo.
+- Relacion grupo -> jefe modelada como 1:N: no existe `jefe_persona_id` en `grupos`; la jefatura vive en `personas.es_jefe_grupo` + `personas.grupo_id`, porque 3 circulos tienen dos matrimonios jefe.
+- `personas.estado`: enum `ACTIVA` / `BAJA_NO_ML` / `BAJA_OBSERVACION` (distingue la marca estructurada `No ML` de la observacion textual libre) mas `personas.observacion_baja` para el detalle. No se implementa ninguna exclusion automatica del padron votante (DEC-012, pendiente de negocio).
+- `unidades_electorales`: mismo diseño del modelo preliminar (`tipo` + `referencia_id` + `grupo_id` + `descripcion` + `cantidad_personas_control` + `estado`), con `UNIQUE (tipo, referencia_id)` agregado para que no se dupliquen unidades para el mismo matrimonio o circulo.
+- `incidencias_padron.tipo`: enum con los ~20 tipos reales que ya emite `backend/scripts/explorar_padron.py` (documentados en `padron_estructura.json`/`padron_incidencias.csv`), no una taxonomia nueva. `severidad` es enum `CRITICA`/`ALTA`/`MEDIA`/`BAJA`.
+- Todos los enums (`EstadoPersona`, `TipoUnidadElectoral`, `EstadoVotacion`, `SeveridadIncidencia`, `TipoIncidenciaPadron`) usan `sa.Enum(..., native_enum=False, create_constraint=True)`: en SQLite y en PostgreSQL por igual se traduce a una columna `VARCHAR` con un `CHECK` de valores permitidos, nunca a un tipo nativo `CREATE TYPE` de Postgres. Se verifico manualmente que `create_constraint=True` es necesario en SQLAlchemy 2.0: sin el, el `CHECK` no se genera.
+- `personas.matrimonio_id` y `matrimonios.integrante_1_id`/`integrante_2_id` forman una referencia circular entre dos tablas. La migracion crea `personas` sin esa FK, luego `matrimonios`, y agrega la FK a `personas` con `batch_alter_table` (en SQLite esto recrea la tabla preservando el resto de columnas y constraints; en PostgreSQL es un `ALTER TABLE` directo). Se verifico que la recreacion no pierde el CHECK del enum de `estado`.
+
+Nota de versionado (Paso 0 de esta mision): el repositorio ya tenia `git init`, un commit inicial (`627e9d8`) y un remoto configurado antes de empezar esta mision -no hizo falta inicializarlo-. Se reviso `.gitignore` y se agrego la exclusion de `*.db`/`*.db-journal` (bases SQLite locales), que faltaba.
 
 Criterios de aceptacion:
 
-- La base se crea desde cero con migraciones.
-- Las restricciones criticas estan en base de datos, no solo en codigo.
-- Los modelos soportan matrimonios consagrados, bloques no consagrados y grupos mixtos.
+- Cumplido: la base se crea desde cero solo con `alembic upgrade head` (sin `create_all`), verificado en pruebas y a mano contra SQLite.
+- Cumplido: las restricciones criticas estan en base de datos: unicidad de voto, nullability de celular/documento/integrante_2_id, tri-estado de `es_consagrado`, CHECK de los enums, unicidad de `nombre_normalizado`, y foreign keys reforzadas via `PRAGMA foreign_keys=ON` en SQLite.
+- Cumplido: los modelos soportan matrimonios consagrados (con y sin segundo integrante), bloques no consagrados y circulos mixtos (`grupos.tipo` libre, sin forzar una clasificacion que la Mision 04 todavia no calcula).
+
+Pendiente para el negocio, no bloquea la Mision 04: bajas de personas (DEC-012), circulos de postulantes (DEC-013) y doble rol de jefes consagrados (DEC-014). El modelo ya soporta cualquiera de los desenlaces posibles de las tres sin migracion adicional.
 
 ## Mision 04 - Importador Y Normalizador Del Padron
 
@@ -269,4 +287,4 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-La siguiente mision recomendada es la Mision 03: Modelo De Datos Y Migraciones, incorporando los ajustes al modelo propuestos en `docs/PADRON_ANALISIS.md`, seccion 6.4 (celular y documento nullable y no unicos, matrimonios de un solo integrante, `es_consagrado` tri-estado, nombre normalizado de grupo y estados de baja diferenciados).
+La siguiente mision recomendada es la Mision 04: Importador Y Normalizador Del Padron, siguiendo el orden recomendado en `docs/PADRON_ANALISIS.md` seccion 6.3 sobre el modelo y las migraciones ya implementados en la Mision 03.
