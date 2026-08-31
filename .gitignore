@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+*.log
+pytest-cache-files-*/
+
+# Node / Vite
+node_modules/
+dist/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Environment
+.env
+
+# Configuracion local de Claude Code
+.claude/
+
+# Datos personales del padron (repo publico: nunca commitear)
+docs/Padron de ML con Jefes 2026.xlsx
+docs/PADRON_ANALISIS.md
+docs/padron_incidencias.csv
+docs/padron_estructura.json
