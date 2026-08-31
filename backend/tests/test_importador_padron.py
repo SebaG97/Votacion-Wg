@@ -330,6 +330,113 @@ def test_excel_inexistente_lanza_file_not_found(db_session, tmp_path):
         ejecutar_importacion(db_session, tmp_path / "no_existe.xlsx")
 
 
+def _construir_excel_fixture_alcance_incidencias(ruta: Path) -> None:
+    """Reproduce el bug de DEC-019: una incidencia CRITICA de un matrimonio no
+    debe bloquear a otro matrimonio -- ni al bloque no consagrado -- del mismo
+    circulo.
+
+    - CIRCULO F: dos matrimonios consagrados. "RIOS MARTINEZ" tiene marcas de
+      consagracion inconsistentes entre los conyuges (CONSAGRACION_INCONSISTENTE,
+      CRITICA, `persona_id` de Rios Carlos). "TORRES BENITEZ" no tiene ningun
+      problema propio: debe quedar HABILITADA pese a compartir circulo.
+    - CIRCULO G: mixto. El bloque no consagrado "LOPEZ GOMEZ" esta bien (jefe
+      Lopez Marcos resuelto, sin incidencias propias). "REYES CABALLERO" es un
+      matrimonio consagrado del mismo circulo con la misma inconsistencia
+      (`persona_id` de Reyes Pedro, que no es jefe): el bloque debe quedar
+      HABILITADA pese a la incidencia critica de ese matrimonio.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = HOJA_PRINCIPAL
+    ws.append(ENCABEZADO_PRINCIPAL)
+
+    filas = [
+        # fila 2: separador CIRCULO F
+        [1, None, None, None, 4, "CIRCULO F", None, None, None, None, None, None, None, None, None, None, None, None, None],
+        # fila 3: Rios Carlos (consagrado)
+        [None, None, 1, None, None, "CIRCULO F", None, None, 1, None, None, "RIOS MARTINEZ", "Rios", "Carlos", "0991-111-111", None, "9111111", None, None],
+        # fila 4: Martinez Elena (sin consagracion -> CONSAGRACION_INCONSISTENTE con Carlos)
+        [None, None, 1, None, None, "CIRCULO F", None, 1, None, None, None, "RIOS MARTINEZ", "Martinez", "Elena", "0991-111-112", None, "9111112", None, None],
+        # fila 5: Torres Diego (consagrado, sin problemas propios)
+        [None, None, 1, None, None, "CIRCULO F", None, None, 1, None, None, "TORRES BENITEZ", "Torres", "Diego", "0992-222-221", None, "9222221", None, None],
+        # fila 6: Benitez Sonia (consagrada, sin problemas propios)
+        [None, None, 1, None, None, "CIRCULO F", None, None, 1, None, None, "TORRES BENITEZ", "Benitez", "Sonia", "0992-222-222", None, "9222222", None, None],
+        # fila 7: separador CIRCULO G
+        [1, None, None, None, 4, "CIRCULO G", None, None, None, None, None, None, None, None, None, None, None, None, None],
+        # fila 8: Lopez Marcos (jefe, sin consagracion)
+        [None, None, 1, None, None, "CIRCULO G", None, 1, None, None, "X", "LOPEZ GOMEZ", "Lopez", "Marcos", "0993-111-111", None, "9311111", None, None],
+        # fila 9: Gomez Ana (sin consagracion, misma pareja del jefe)
+        [None, None, 1, None, None, "CIRCULO G", None, 1, None, None, None, "LOPEZ GOMEZ", "Gomez", "Ana", "0993-111-112", None, "9311112", None, None],
+        # fila 10: Reyes Pedro (consagrado, no es jefe)
+        [None, None, 1, None, None, "CIRCULO G", None, None, 1, None, None, "REYES CABALLERO", "Reyes", "Pedro", "0994-222-221", None, "9422221", None, None],
+        # fila 11: Caballero Rosa (sin consagracion -> CONSAGRACION_INCONSISTENTE con Pedro)
+        [None, None, 1, None, None, "CIRCULO G", None, 1, None, None, None, "REYES CABALLERO", "Caballero", "Rosa", "0994-222-222", None, "9422222", None, None],
+    ]
+    for fila in filas:
+        ws.append(fila)
+
+    ws_jefes = wb.create_sheet(HOJA_JEFES)
+    ws_jefes.append(ENCABEZADO_JEFES)
+
+    wb.save(ruta)
+
+
+@pytest.fixture()
+def excel_fixture_alcance_incidencias(tmp_path) -> Path:
+    ruta = tmp_path / "padron_fixture_alcance_incidencias.xlsx"
+    _construir_excel_fixture_alcance_incidencias(ruta)
+    return ruta
+
+
+def test_incidencia_critica_de_un_matrimonio_no_bloquea_a_otro_del_mismo_circulo(
+    db_session, excel_fixture_alcance_incidencias
+):
+    """DEC-019: el bloqueo de MATRIMONIO_CONSAGRADO depende solo de incidencias
+    sobre sus propios integrantes, nunca de lo que le pase a otro matrimonio
+    del mismo circulo."""
+    ejecutar_importacion(db_session, excel_fixture_alcance_incidencias)
+
+    incidencia = (
+        db_session.query(IncidenciaPadron)
+        .filter(IncidenciaPadron.tipo == "CONSAGRACION_INCONSISTENTE")
+        .filter(IncidenciaPadron.descripcion.contains("CIRCULO F"))
+        .one()
+    )
+    assert incidencia.persona_id is not None
+
+    matrimonio_rios = (
+        db_session.query(Matrimonio).filter(Matrimonio.codigo_externo == "RIOS MARTINEZ").one()
+    )
+    matrimonio_torres = (
+        db_session.query(Matrimonio).filter(Matrimonio.codigo_externo == "TORRES BENITEZ").one()
+    )
+
+    unidad_rios = _unidad(db_session, TipoUnidadElectoral.MATRIMONIO_CONSAGRADO, matrimonio_rios.id)
+    unidad_torres = _unidad(db_session, TipoUnidadElectoral.MATRIMONIO_CONSAGRADO, matrimonio_torres.id)
+
+    assert unidad_rios.estado == EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value
+    assert unidad_torres.estado == EstadoUnidadElectoral.HABILITADA.value
+
+
+def test_incidencia_critica_de_un_matrimonio_no_bloquea_el_bloque_no_consagrado_del_circulo(
+    db_session, excel_fixture_alcance_incidencias
+):
+    """DEC-019: el bloqueo de BLOQUE_NO_CONSAGRADO depende solo de incidencias
+    sobre el circulo en si o sobre sus jefes, nunca de la incidencia de un
+    matrimonio consagrado puntual del mismo circulo."""
+    ejecutar_importacion(db_session, excel_fixture_alcance_incidencias)
+
+    grupo_g = _grupo(db_session, "CIRCULO G")
+    unidad_bloque = _unidad(db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, grupo_g.id)
+    assert unidad_bloque.estado == EstadoUnidadElectoral.HABILITADA.value
+
+    matrimonio_reyes = (
+        db_session.query(Matrimonio).filter(Matrimonio.codigo_externo == "REYES CABALLERO").one()
+    )
+    unidad_reyes = _unidad(db_session, TipoUnidadElectoral.MATRIMONIO_CONSAGRADO, matrimonio_reyes.id)
+    assert unidad_reyes.estado == EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value
+
+
 @pytest.mark.slow
 def test_importacion_contra_excel_real(db_session):
     """Integracion contra el Excel real. Correr manualmente antes de una votacion real:

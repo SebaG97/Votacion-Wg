@@ -221,20 +221,40 @@ def _crear_incidencias(
     return creadas
 
 
-def _grupos_con_incidencia_critica(incidencias: list[IncidenciaPadron]) -> set[int]:
-    return {
-        i.grupo_id
-        for i in incidencias
-        if i.severidad == SeveridadIncidencia.CRITICA and i.grupo_id is not None
-    }
-
-
 def _personas_con_incidencia_critica(incidencias: list[IncidenciaPadron]) -> set[int]:
     return {
         i.persona_id
         for i in incidencias
         if i.severidad == SeveridadIncidencia.CRITICA and i.persona_id is not None
     }
+
+
+def _personas_jefe_por_grupo(orm_personas_por_fila: dict[int, Persona]) -> dict[int, set[int]]:
+    resultado: dict[int, set[int]] = {}
+    for persona in orm_personas_por_fila.values():
+        if persona.es_jefe_grupo and persona.grupo_id is not None:
+            resultado.setdefault(persona.grupo_id, set()).add(persona.id)
+    return resultado
+
+
+def _grupos_con_incidencia_de_jefe_o_circulo(
+    incidencias: list[IncidenciaPadron], personas_jefe_por_grupo: dict[int, set[int]]
+) -> set[int]:
+    """Circulos con una incidencia CRITICA que compromete al bloque no consagrado
+    (DEC-019): sobre el circulo en si (`persona_id IS NULL`, p.ej. `CIRCULO_SIN_JEFE`
+    o `JEFE_SIN_PERSONA_EN_PADRON`) o sobre alguno de sus jefes. Una incidencia
+    con `grupo_id` de este circulo pero `persona_id` de alguien que no es jefe
+    -- por ejemplo, un matrimonio consagrado del mismo circulo con su propio
+    problema -- no compromete al bloque: ese problema es de ese matrimonio, no
+    del bloque que representa el jefe.
+    """
+    grupos: set[int] = set()
+    for i in incidencias:
+        if i.severidad != SeveridadIncidencia.CRITICA or i.grupo_id is None:
+            continue
+        if i.persona_id is None or i.persona_id in personas_jefe_por_grupo.get(i.grupo_id, set()):
+            grupos.add(i.grupo_id)
+    return grupos
 
 
 def _crear_unidades_electorales(
@@ -245,20 +265,24 @@ def _crear_unidades_electorales(
     orm_personas_por_fila: dict[int, Persona],
     incidencias_orm: list[IncidenciaPadron],
 ) -> list[UnidadElectoral]:
-    grupos_con_critica = _grupos_con_incidencia_critica(incidencias_orm)
     personas_con_critica = _personas_con_incidencia_critica(incidencias_orm)
+    personas_jefe_por_grupo = _personas_jefe_por_grupo(orm_personas_por_fila)
+    grupos_con_critica_de_bloque = _grupos_con_incidencia_de_jefe_o_circulo(
+        incidencias_orm, personas_jefe_por_grupo
+    )
 
     unidades: list[UnidadElectoral] = []
 
     # --- MATRIMONIO_CONSAGRADO: una por matrimonio consagrado (DEC-011). ---
+    # Se bloquea unicamente por una incidencia CRITICA sobre sus propios
+    # integrantes (DEC-019): lo que le pase a otro matrimonio del mismo
+    # circulo no compromete su elegibilidad.
     for m, matrimonio in pares_matrimonio:
         if matrimonio.es_consagrado is not True:
             continue
 
         integrantes_ids = {orm_personas_por_fila[f].id for f in m.filas}
-        tiene_critica = bool(integrantes_ids & personas_con_critica) or (
-            matrimonio.grupo_id in grupos_con_critica
-        )
+        tiene_critica = bool(integrantes_ids & personas_con_critica)
         personas_matrimonio = [orm_personas_por_fila[f] for f in m.filas]
         todos_de_baja = all(p.estado != EstadoPersona.ACTIVA for p in personas_matrimonio)
 
@@ -281,6 +305,9 @@ def _crear_unidades_electorales(
         unidades.append(unidad)
 
     # --- BLOQUE_NO_CONSAGRADO: uno por circulo con matrimonio no consagrado. -
+    # Se bloquea unicamente por una incidencia CRITICA sobre el circulo en si
+    # o sobre alguno de sus jefes (DEC-019): una incidencia de un matrimonio
+    # consagrado puntual del mismo circulo no compromete al bloque.
     matrimonios_no_consagrados_por_grupo: dict[int, list[tuple[MatrimonioExcel, Matrimonio]]] = {}
     for m, matrimonio in pares_matrimonio:
         if matrimonio.es_consagrado is not False or matrimonio.grupo_id is None:
@@ -292,7 +319,7 @@ def _crear_unidades_electorales(
         if not pares_grupo:
             continue
 
-        tiene_critica = grupo.id in grupos_con_critica
+        tiene_critica = grupo.id in grupos_con_critica_de_bloque
         es_postulantes = _es_circulo_postulantes(grupo.nombre)
 
         personas_bloque = [
