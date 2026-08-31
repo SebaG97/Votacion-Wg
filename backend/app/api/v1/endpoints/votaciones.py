@@ -10,7 +10,10 @@ administrativos.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
@@ -23,10 +26,14 @@ from app.schemas.votacion import (
     VotacionCreateRequest,
     VotacionEstadoResponse,
     VotacionResponse,
+    VotacionResultadosResponse,
 )
 from app.services.votacion import (
     OtraVotacionAbiertaError,
+    ResultadosBloqueadosError,
+    ResultadosYaReveladosError,
     VotacionNoAbiertaError,
+    VotacionNoCerradaError,
     VotacionNoEncontradaError,
     VotacionNoEsBorradorError,
     VotacionSinOpcionesError,
@@ -36,6 +43,8 @@ from app.services.votacion import (
     crear_votacion,
     listar_opciones,
     obtener_estado_operativo,
+    obtener_resultados,
+    revelar_resultados,
 )
 
 router = APIRouter(dependencies=[Depends(require_admin)])
@@ -128,3 +137,83 @@ def estado(votacion_id: int, db: Session = Depends(get_db)) -> VotacionEstadoRes
     except VotacionNoEncontradaError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return VotacionEstadoResponse(**datos)
+
+
+@router.post(
+    "/votaciones/{votacion_id}/revelar",
+    response_model=VotacionResponse,
+)
+def revelar(votacion_id: int, db: Session = Depends(get_db)) -> VotacionResponse:
+    try:
+        votacion = revelar_resultados(db, votacion_id=votacion_id)
+    except VotacionNoEncontradaError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (VotacionNoCerradaError, ResultadosYaReveladosError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return VotacionResponse.model_validate(votacion)
+
+
+def _resultados_a_csv(datos: dict) -> str:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+
+    writer.writerow(["votacion_id", datos["votacion_id"]])
+    writer.writerow(["estado", datos["estado"].value])
+    writer.writerow(["total_votos", datos["total_votos"]])
+    writer.writerow([])
+
+    writer.writerow(["seccion", "opcion_id", "nombre", "votos", "porcentaje"])
+    for fila in datos["totales_por_opcion"]:
+        writer.writerow(
+            ["opcion", fila["opcion_id"], fila["nombre"], fila["votos"], f"{fila['porcentaje']:.2f}"]
+        )
+    writer.writerow([])
+
+    writer.writerow(["seccion", "tipo", "votos_emitidos", "unidades_habilitadas", "participacion"])
+    for fila in datos["totales_por_tipo_unidad"]:
+        participacion = "" if fila["participacion"] is None else f"{fila['participacion']:.4f}"
+        writer.writerow(
+            [
+                "tipo_unidad",
+                fila["tipo"].value,
+                fila["votos_emitidos"],
+                fila["unidades_habilitadas"],
+                participacion,
+            ]
+        )
+    writer.writerow([])
+
+    writer.writerow(
+        ["seccion", "grupo_id", "nombre", "votos_emitidos", "unidades_habilitadas", "participacion"]
+    )
+    for fila in datos["totales_por_grupo"]:
+        participacion = "" if fila["participacion"] is None else f"{fila['participacion']:.4f}"
+        writer.writerow(
+            [
+                "grupo",
+                fila["grupo_id"],
+                fila["nombre"],
+                fila["votos_emitidos"],
+                fila["unidades_habilitadas"],
+                participacion,
+            ]
+        )
+
+    return buffer.getvalue()
+
+
+@router.get("/votaciones/{votacion_id}/resultados", response_model=None)
+def resultados(
+    votacion_id: int, formato: str | None = None, db: Session = Depends(get_db)
+) -> VotacionResultadosResponse | Response:
+    try:
+        datos = obtener_resultados(db, votacion_id)
+    except VotacionNoEncontradaError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ResultadosBloqueadosError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    if formato == "csv":
+        return Response(content=_resultados_a_csv(datos), media_type="text/csv")
+
+    return VotacionResultadosResponse(**datos)

@@ -235,23 +235,29 @@ Fuera de alcance a proposito, es la Mision 08 completa: revelacion de resultados
 
 ## Mision 08 - Resultados
 
-Estado: pendiente
+Estado: completada (2026-08-31)
 
-Objetivo: revelar resultados solo despues del cierre y con trazabilidad.
+Objetivo: revelar resultados solo despues del cierre y con trazabilidad, cerrando el ultimo tramo del ciclo de vida de `Votacion` (el cuarto estado, `RESULTADOS_REVELADOS`, y `resultados_revelados_at`, presentes desde la Mision 03 pero sin usar).
 
-Entregables:
+Ambiguedad resuelta (DEC-022): `REGLAS_NEGOCIO.md` sugiere que revelar es una accion deliberada separada de consultar; el criterio de aceptacion de esta mision dice literalmente "con votacion cerrada, los resultados se muestran". Se resolvio que `GET /resultados` funciona con `estado` en `CERRADA` **o** `RESULTADOS_REVELADOS` (no hace falta revelar primero para consultar administrativamente), y que `POST /revelar` es un hito formal aparte, valido solo desde `CERRADA`, para que la Mision 10 pueda distinguir "cerrada pero no comunicada" de "ya anunciada".
 
-- Endpoint de resultados.
-- Validacion de estado cerrado o revelado.
-- Totales por opcion.
-- Totales por grupo y tipo de unidad electoral.
-- Exportacion basica si aplica.
+Entregables reales:
+
+- `backend/app/services/votacion.py`: `revelar_resultados` (exige `CERRADA`; `VotacionNoCerradaError` si no, `ResultadosYaReveladosError` explicito -- con la fecha de revelacion anterior -- si ya estaba en `RESULTADOS_REVELADOS`) y `obtener_resultados` (exige `CERRADA` o `RESULTADOS_REVELADOS`; `ResultadosBloqueadosError` en `BORRADOR`/`ABIERTA`, sin calcular nada). Los tres desgloses -- por opcion, por tipo de unidad electoral y por grupo (circulo) -- y el total general se calculan siempre a partir de las filas de `Voto` de esa votacion, nunca de `UnidadElectoral.estado` (ese campo es de elegibilidad, no de resultados). Deliberadamente **no** se cruza grupo x opcion: muchos circulos tienen una sola unidad electoral, y ese cruce equivaldria a revelar el voto individual de esa unidad (DEC-022).
+- `backend/app/schemas/votacion.py`: `VotacionResultadosResponse` (`total_votos`, `totales_por_opcion`, `totales_por_tipo_unidad` con `unidades_habilitadas`/`participacion` por tipo, `totales_por_grupo` con lo mismo por circulo) y `VotacionResponse` gana `resultados_revelados_at`.
+- `POST /api/v1/votaciones/{id}/revelar` y `GET /api/v1/votaciones/{id}/resultados` (`backend/app/api/v1/endpoints/votaciones.py`), ambos en el mismo router protegido por `require_admin` (DEC-021) que el resto de la administracion de votacion: `/resultados` lo consume el panel administrativo (Mision 10), no el frontend de votacion (Mision 09), que `REGLAS_NEGOCIO.md` prohibe que muestre resultados.
+- Exportacion basica: `GET /resultados?formato=csv` sobre el mismo endpoint (no uno aparte, para no duplicar el calculo), devuelve las tres secciones mas el total general como texto `text/csv` (`_resultados_a_csv`, en el endpoint, separado del calculo de resultados en el servicio).
+- `backend/tests/test_resultados.py` (10 pruebas de servicio) y `backend/tests/test_resultados_endpoint.py` (6 pruebas HTTP): resultados bloqueados en `BORRADOR`/`ABIERTA`, 404 sin la votacion, resultados en `CERRADA` con los tres desgloses, mismo contenido en `RESULTADOS_REVELADOS`, revelar desde `CERRADA` (200, `resultados_revelados_at` seteado), revelar desde `BORRADOR`/`ABIERTA` (409) y revelar dos veces (409 explicito), un caso con dos opciones y los dos tipos de unidad electoral verificando que los tres desgloses suman exactamente el total de votos insertados, control de acceso administrativo sobre los dos endpoints nuevos, y el formato `csv`.
+
+Decision nueva: DEC-022 (interpretacion de la ambiguedad CERRADA/revelar, y la decision de no cruzar grupo x opcion). De paso se corrigio un error de redaccion en DEC-021 ("cinco endpoints" listaba seis).
 
 Criterios de aceptacion:
 
-- Con votacion abierta, el endpoint de resultados responde bloqueado.
-- Con votacion cerrada, los resultados se muestran de forma consistente.
-- Los conteos coinciden con los votos registrados.
+- Cumplido: con votacion `BORRADOR` o `ABIERTA`, `GET /resultados` responde `409` sin filtrar ningun numero.
+- Cumplido: con votacion `CERRADA` (o `RESULTADOS_REVELADOS`), los resultados se muestran de forma consistente: `totales_por_opcion`, `totales_por_tipo_unidad` y `totales_por_grupo` suman exactamente el mismo total general.
+- Cumplido: los conteos coinciden con las filas de `Voto` de esa votacion, no con estimaciones ni con `UnidadElectoral.estado`.
+
+Con esto se cierra el backend "core" del sistema (Misiones 00-08). Las Misiones 09-11 restantes son frontend y preparacion operativa. El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020): no es parte de ninguna mision de backend "core".
 
 ## Mision 09 - Frontend De Votacion
 
@@ -317,4 +323,10 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-La siguiente mision recomendada es la Mision 08: Resultados, para revelar totales por opcion solo despues del cierre (`Votacion.estado == CERRADA`), apoyandose en `resultados_revelados_at` (ya en el modelo desde la Mision 03) y en los endpoints de administracion de la Mision 07 para decidir cuando una votacion esta en condiciones de revelarse. El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): no es parte de la Mision 08.
+Con la Mision 08 completada, se cierra el backend "core" del sistema (Misiones 00-08: padron, habilitacion, voto, administracion de votacion y resultados). Las tres misiones restantes son frontend y preparacion operativa, no backend nuevo:
+
+- Mision 09 - Frontend De Votacion: la experiencia de consulta por celular y emision de voto, consumiendo los endpoints ya existentes de habilitacion (Mision 05) y voto (Mision 06).
+- Mision 10 - Frontend Administrativo: dashboard, incidencias, importaciones, apertura/cierre y la vista de resultados finales, consumiendo los endpoints administrativos de las Misiones 07 y 08 (incluido `GET /resultados` y `POST /revelar`).
+- Mision 11 - Prueba General Y Preparacion Operativa: validacion end-to-end antes de una votacion real.
+
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): no es parte de ninguna mision de backend "core", y conviene resolverlo antes de operar una votacion real (Mision 11) o al definir el frontend de votacion (Mision 09), que es quien primero necesita autenticar a la persona que consulta/vota.
