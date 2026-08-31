@@ -3,8 +3,18 @@ from alembic import command
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Grupo, Matrimonio, OpcionVoto, Persona, UnidadElectoral, Votacion, Voto
-from app.models.enums import EstadoVotacion, TipoUnidadElectoral
+from app.models import (
+    Grupo,
+    ImportacionPadron,
+    IncidenciaPadron,
+    Matrimonio,
+    OpcionVoto,
+    Persona,
+    UnidadElectoral,
+    Votacion,
+    Voto,
+)
+from app.models.enums import EstadoVotacion, SeveridadIncidencia, TipoIncidenciaPadron, TipoUnidadElectoral
 
 EXPECTED_TABLES = {
     "personas",
@@ -15,6 +25,7 @@ EXPECTED_TABLES = {
     "opciones_voto",
     "votos",
     "incidencias_padron",
+    "importaciones_padron",
     "alembic_version",
 }
 
@@ -171,3 +182,30 @@ def test_sqlite_aplica_foreign_keys(db_session):
     db_session.add(persona)
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+
+def test_incidencia_padron_se_vincula_a_una_importacion(db_session):
+    importacion = ImportacionPadron(archivo_origen="padron.xlsx")
+    db_session.add(importacion)
+    db_session.flush()
+
+    incidencia = IncidenciaPadron(
+        tipo=TipoIncidenciaPadron.CELULAR_FALTANTE,
+        severidad=SeveridadIncidencia.ALTA,
+        importacion_id=importacion.id,
+    )
+    db_session.add(incidencia)
+    db_session.commit()
+
+    assert incidencia.importacion_id == importacion.id
+
+
+def test_incidencia_padron_importacion_id_es_nullable(db_session):
+    incidencia = IncidenciaPadron(
+        tipo=TipoIncidenciaPadron.CELULAR_FALTANTE,
+        severidad=SeveridadIncidencia.ALTA,
+    )
+    db_session.add(incidencia)
+    db_session.commit()
+
+    assert incidencia.importacion_id is None

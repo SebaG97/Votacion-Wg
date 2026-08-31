@@ -25,6 +25,9 @@ class IncidenciaPadron(Base):
     grupo_id: Mapped[int | None] = mapped_column(
         ForeignKey("grupos.id"), nullable=True, index=True
     )
+    importacion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("importaciones_padron.id"), nullable=True, index=True
+    )
     estado: Mapped[str | None] = mapped_column(String(50), nullable=True)
     resuelto_por: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resuelto_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)

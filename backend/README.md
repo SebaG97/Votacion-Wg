@@ -69,6 +69,24 @@ Lectura del informe: `docs/PADRON_ANALISIS.md`.
 
 Acepta `--excel` y `--salida` para apuntar a otro archivo o directorio.
 
+### Importador Del Padron
+
+Convierte el Excel validado en personas, matrimonios, grupos, jefes y
+unidades electorales (Mision 04). Reusa la logica de `app/services/padron/`
+(compartida con el explorador). Rechaza la corrida si ya hay una votacion
+abierta o cerrada (DEC-015); mientras la votacion siga en borrador, se puede
+correr de nuevo tantas veces como haga falta.
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m app.services.padron.importar
+```
+
+Acepta `--excel` (por defecto `docs/Padron de ML con Jefes 2026.xlsx`) y
+`--usuario`. Equivalente a `POST /api/v1/padron/importaciones`. Requiere que
+las migraciones ya hayan corrido.
+
 ### Seed De Desarrollo
 
 Inserta un puñado de filas de ejemplo (no datos reales del padron) para

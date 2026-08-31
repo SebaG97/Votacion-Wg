@@ -123,24 +123,39 @@ Pendiente para el negocio, no bloquea la Mision 04: bajas de personas (DEC-012),
 
 ## Mision 04 - Importador Y Normalizador Del Padron
 
-Estado: pendiente
+Estado: completada (2026-08-31)
 
 Objetivo: convertir el Excel validado en personas, matrimonios, grupos, jefes y unidades electorales.
 
-Entregables:
+Entregables reales:
 
-- Endpoint o comando de importacion.
-- Servicio de normalizacion.
-- Registro de importacion.
-- Generacion de incidencias.
-- Resumen de votos maximos por tipo y grupo.
+- `backend/app/services/padron/`: la logica de la Mision 02 (normalizacion de celular/CI, clasificacion estructural de filas, agrupamiento de matrimonios, deteccion de incidencias y reconciliacion de las dos hojas) se extrajo de `backend/scripts/explorar_padron.py` a este paquete (`normalizacion.py`, `columnas.py`, `dominio.py`, `lectura.py`, `clasificacion.py`, `matrimonios.py`, `incidencias.py`, `analisis.py`), sin cambiar ninguna regla de negocio. `explorar_padron.py` ahora importa esas funciones en vez de duplicarlas; se verifico que su salida (`padron_estructura.json`, `padron_incidencias.csv`) sigue siendo byte por byte identica a la de la Mision 02.
+- `backend/app/services/padron/importador.py`: el importador real. Reemplaza por completo -dentro de una transaccion- lo generado por una corrida anterior (personas, matrimonios, grupos, unidades electorales e incidencias), aplica la cascada de reconciliacion de DEC-009 para completar el celular de jefes que faltan en la hoja principal, genera las unidades electorales y les asigna un estado segun DEC-016, y rechaza la corrida si existe una `Votacion` mas alla de `BORRADOR` (DEC-015).
+- `backend/app/services/padron/importar.py`: comando de CLI (`python -m app.services.padron.importar [--excel RUTA] [--usuario NOMBRE]`), para probar el importador sin levantar el servidor.
+- `POST /api/v1/padron/importaciones` (`backend/app/api/v1/endpoints/padron.py`, `backend/app/schemas/padron.py`): dispara la misma logica; devuelve 201 con el registro de importacion y su resumen, 404 si no encuentra el Excel, 409 si hay una votacion que bloquea la reimportacion.
+- `backend/app/models/importacion_padron.py`: modelo `ImportacionPadron` (`importaciones_padron`: `fecha`, `archivo_origen`, `usuario` nullable, `estado` `EN_PROCESO`/`COMPLETADA`/`FALLIDA`, `resumen` JSON, `error`). `incidencias_padron` gano la FK `importacion_id`. Migracion `77ba051c28a4_registro_de_importacion_del_padron.py`.
+- `backend/app/models/enums.py`: `TipoIncidenciaPadron.MATRIMONIO_SIN_CELULAR_DISPONIBLE` (DEC-017), con su CHECK constraint ampliado en la migracion `b02555d5ef5b_matrimonio_sin_celular_disponible.py`.
+- `backend/tests/test_importador_padron.py`: 15 pruebas rapidas contra un `.xlsx` sintetico de 14 filas (`_construir_excel_fixture`) que reproduce a proposito un matrimonio de un solo integrante sin viudez, dos etiquetas `MATRIMONIO` repetidas en circulos distintos, un celular compartido entre conyuges, una fila de resumen al pie, una celda combinada, un jefe que solo existe en `LISTADO JEFES` (con y sin correspondencia), un matrimonio consagrado sin ningun celular valido en ninguno de sus dos integrantes (DEC-017, bloquea la unidad) y un matrimonio donde solo uno de los dos tiene celular propio (no bloquea, aunque el otro dependa de la reconciliacion de `LISTADO JEFES` para completar el suyo). Mas 1 prueba `@pytest.mark.slow` que corre contra el Excel real y verifica los totales exactos de `PADRON_ANALISIS.md`. `backend/tests/test_padron_endpoint.py`: 3 pruebas del endpoint HTTP (201, 404, 409) con `TestClient` y un SQLite migrado por prueba.
+- `openpyxl` se movio de `requirements-dev.txt` a `requirements.txt`/`dependencies` (ya no es solo una herramienta de analisis: el importador la usa en runtime).
+
+Resultado de correr el importador contra el Excel real (`python -m app.services.padron.importar`), verificado contra `PADRON_ANALISIS.md`:
+
+- 1113 personas, 571 matrimonios (260 consagrados, 292 no consagrados, 19 sin definir), 93 grupos -- coinciden exactamente con el analisis de la Mision 02.
+- 690 incidencias (72 CRITICA, 43 ALTA, 168 MEDIA, 407 BAJA). Los 682/64 originales de la Mision 02 coinciden salvo por las 8 incidencias `MATRIMONIO_SIN_CELULAR_DISPONIBLE` (CRITICA) agregadas por DEC-017: 7 matrimonios (8 personas -- seis de un solo integrante, uno de dos) donde ningun integrante tiene un celular que normalice a un numero valido.
+- Reconciliacion de `LISTADO JEFES`: 110 por nombre+celular, 29 por celular, 4 por nombre (celular discrepante, no completado automaticamente), 3 sin correspondencia -- coincide con DEC-009. Se verifico ademas, contra el Excel real, que ninguno de los 7 circulos con bloque no consagrado y jefe resuelto queda sin un celular valido tras esta reconciliacion (0 casos sobre 54 circulos), asi que `BLOQUE_SIN_CELULAR_JEFE_DISPONIBLE` no se agrego a la taxonomia -- no hay ningun caso real que lo justifique (DEC-017).
+- 314 unidades electorales (260 `MATRIMONIO_CONSAGRADO` + 54 `BLOQUE_NO_CONSAGRADO`): 216 `HABILITADA`, 70 `BLOQUEADA_POR_INCIDENCIA`, 22 `PENDIENTE_DEFINICION_POSTULANTES`, 6 `PENDIENTE_DEFINICION_BAJA`. Votos maximos habilitables hoy: 203 `MATRIMONIO_CONSAGRADO` + 13 `BLOQUE_NO_CONSAGRADO` = 216 (baja de 224 tras aplicar DEC-017; tres de los siete matrimonios sin celular tambien tenian todos sus integrantes de baja y antes contaban como `PENDIENTE_DEFINICION_BAJA`, asi que `BLOQUEADA_POR_INCIDENCIA` sube en 11, no en 8).
+
+Decisiones nuevas: DEC-015 (rechazo de reimportacion con votacion abierta/cerrada; reemplazo transaccional mientras este en borrador), DEC-016 (prioridad de estados de unidad electoral: incidencia critica > postulantes pendiente > baja pendiente > habilitada) y DEC-017 (matrimonio sin ningun celular valido, a partir de la aclaracion textual del dueño del padron sobre DEC-005).
 
 Criterios de aceptacion:
 
-- El importador no habilita registros con incidencias criticas.
-- Los duplicados de celular quedan bloqueados para voto automatico.
-- Los matrimonios consagrados generan una unidad electoral por matrimonio.
-- Los bloques no consagrados generan una unidad electoral por jefe/grupo.
+- Cumplido: el importador no deja habilitada ninguna unidad electoral con una incidencia CRITICA asociada (`BLOQUEADA_POR_INCIDENCIA`).
+- Cumplido: los duplicados de celular entre matrimonios distintos (`CELULAR_DUPLICADO`, `CELULAR_DUPLICADO_EN_LISTADO_JEFES`, `CELULAR_DISCREPANTE_ENTRE_HOJAS`) son CRITICA y bloquean la unidad electoral asociada; el celular compartido entre conyuges (`CELULAR_COMPARTIDO_CONYUGES`, DEC-008) no bloquea.
+- Cumplido: un matrimonio donde ningun integrante tiene celular valido (`MATRIMONIO_SIN_CELULAR_DISPONIBLE`, DEC-017) bloquea su unidad electoral; un matrimonio donde al menos uno de los dos si tiene celular valido no se ve afectado, aunque el otro dependa de `LISTADO JEFES` para completar el suyo.
+- Cumplido: cada matrimonio consagrado (incluidos los 22 viudos, DEC-011) genera una unidad `MATRIMONIO_CONSAGRADO`.
+- Cumplido: cada circulo con al menos un matrimonio no consagrado genera una unidad `BLOQUE_NO_CONSAGRADO` (54, DEC-010), independientemente de si el jefe se resuelve por la hoja principal o por `LISTADO JEFES`.
+
+Pendiente para el negocio, no bloquea la Mision 05: bajas de personas (DEC-012), circulos de postulantes (DEC-013) y doble rol de jefes consagrados (DEC-014). Aplicar cualquiera de las tres es un `UPDATE` sobre `unidades_electorales`/`incidencias_padron`, no una reimportacion (DEC-016).
 
 ## Mision 05 - Motor De Habilitacion Por Celular
 
@@ -287,4 +302,4 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-La siguiente mision recomendada es la Mision 04: Importador Y Normalizador Del Padron, siguiendo el orden recomendado en `docs/PADRON_ANALISIS.md` seccion 6.3 sobre el modelo y las migraciones ya implementados en la Mision 03.
+La siguiente mision recomendada es la Mision 05: Motor De Habilitacion Por Celular, sobre el padron real ya importado (personas, matrimonios, grupos, unidades electorales e incidencias) en la Mision 04.

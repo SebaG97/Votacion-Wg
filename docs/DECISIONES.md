@@ -155,3 +155,42 @@ Contexto: 43 de los 74 matrimonios jefe son ademas consagrados: la persona tiene
 Decision: Pendiente. No se implementa restriccion alguna todavia; el motor de habilitacion (Mision 05) es quien debe aplicar la regla que el negocio confirme.
 
 Consecuencias: El modelo ya separa el derecho a voto de la persona mediante `unidades_electorales` (DEC-003), por lo que ambos desenlaces -emitir dos votos o forzar una eleccion entre las dos unidades- se resuelven en la logica de habilitacion y registro de voto (Misiones 05 y 06) sin cambios al esquema de base de datos.
+
+## DEC-015 - El Importador Rechaza Reimportar Si Ya Hay Una Votacion Abierta O Posterior
+
+Fecha: 2026-08-31
+
+Contexto: El importador de la Mision 04 puede correrse mas de una vez (para corregir datos del padron antes de una votacion real). Si ya existen votos emitidos, reemplazar personas/matrimonios/unidades electorales rompería la trazabilidad de esos votos y podria dejar votos huerfanos apuntando a una unidad electoral que ya no existe.
+
+Decision: Antes de importar, el importador verifica si existe alguna `Votacion` con `estado` distinto de `BORRADOR` (es decir, `ABIERTA`, `CERRADA` o `RESULTADOS_REVELADOS`). Si existe, la corrida se rechaza por completo (`ImportacionRechazadaError`, HTTP 409 en el endpoint) sin tocar la base. Si no existe ninguna votacion mas alla de `BORRADOR` (incluido el caso de que todavia no exista ninguna votacion), el importador reemplaza por completo lo generado por la corrida anterior -personas, matrimonios, grupos, unidades electorales e incidencias- dentro de una unica transaccion, y vuelve a generarlo desde cero a partir del Excel. Cada corrida (exitosa o fallida) queda registrada como una fila en `importaciones_padron`, con su `resumen` o su `error`.
+
+Consecuencias: El padron se puede corregir y reimportar tantas veces como haga falta mientras la votacion siga en preparacion, sin acumular duplicados ni dejar registros a medio borrar si la corrida falla a mitad de camino (el reemplazo y la generacion ocurren en la misma transaccion; si algo falla, se revierte todo y la importacion anterior sigue vigente). Una vez que una votacion se abre, el padron queda congelado: para corregirlo hace falta cerrar o descartar esa votacion primero. Esto responde al pendiente de la Mision 03 sobre que pasa si se reimporta el padron.
+
+## DEC-016 - Unidades Electorales Con Decision De Negocio Pendiente Se Crean Igual, Con Un Estado Que Las Distingue
+
+Fecha: 2026-08-31
+
+Contexto: Al momento de implementar el importador (Mision 04), DEC-012 (bajas de personas), DEC-013 (circulos de postulantes) y DEC-014 (doble rol de jefes consagrados) seguian sin resolucion del negocio. Bloquear la importacion hasta tener esas tres respuestas hubiera dejado el padron entero sin poder cargarse. El requerimiento pide lo contrario: importar todo y generar las unidades electorales igual, marcandolas de forma que se puedan habilitar despues sin reimportar.
+
+Decision: `unidades_electorales.estado` (columna libre desde la Mision 03) toma uno de cuatro valores segun esta prioridad, evaluada en orden:
+
+1. `BLOQUEADA_POR_INCIDENCIA`: la unidad (el matrimonio, o algun matrimonio del bloque) tiene asociada al menos una incidencia de severidad CRITICA (por ejemplo `CONSAGRACION_INCONSISTENTE`, `CIRCULO_SIN_JEFE`, `CELULAR_DISCREPANTE_ENTRE_HOJAS`). Esta condicion tiene prioridad sobre las dos siguientes: un dato con integridad dudosa se congela primero, independientemente de si ademas es un circulo de postulantes o tiene bajas.
+2. `PENDIENTE_DEFINICION_POSTULANTES`: solo aplica a `BLOQUE_NO_CONSAGRADO` cuyo circulo contiene la palabra "POSTULANTE" en su nombre (DEC-013). Un matrimonio consagrado que este dentro de un circulo de postulantes no queda pendiente por esta regla: solo el bloque del circulo lo esta.
+3. `PENDIENTE_DEFINICION_BAJA`: todas las personas que componen la unidad (los integrantes del matrimonio, o todas las personas de los matrimonios no consagrados del bloque) estan en estado `BAJA_NO_ML` o `BAJA_OBSERVACION` (DEC-012). Si al menos una persona sigue `ACTIVA`, la unidad no se marca pendiente por este motivo.
+4. `HABILITADA`: ninguna de las anteriores aplica.
+
+El doble rol de jefes consagrados (DEC-014) no necesita un estado especial: el modelo ya permite que una persona tenga dos unidades electorales (su matrimonio y el bloque que lidera) sin relacion directa entre ambas filas, asi que cada una se evalua de forma independiente con las mismas cuatro reglas.
+
+Consecuencias: Cuando el negocio resuelva DEC-012, DEC-013 o DEC-014, aplicar la decision es un `UPDATE` sobre `unidades_electorales.estado` (o sobre las incidencias que las bloquean), no una reimportacion del padron. El resumen de la importacion (`ImportacionPadron.resumen`) reporta `votos_maximos` contando unicamente las unidades en `HABILITADA`, para no sobreestimar cuantos votos puede recibir la votacion mientras estas decisiones sigan abiertas.
+
+## DEC-017 - Un Matrimonio Sin Ningun Celular Valido No Puede Consultar Su Habilitacion
+
+Fecha: 2026-08-31
+
+Contexto: DEC-002 y DEC-005 tratan el celular como el canal de consulta de habilitacion, pero hasta la Mision 04 el importador solo generaba `CELULAR_FALTANTE` **por persona** (severidad ALTA, no bloqueante): un matrimonio donde un conyuge no tenia celular pero el otro si seguia quedando `HABILITADA`, correctamente, porque ese conyuge podia consultar por los dos. El dueño del padron aclaro por escrito, revisando el resultado de la Mision 04, que el caso que faltaba cubrir es distinto: si **ningun** integrante del matrimonio tiene un celular valido, no existe ningun numero por el cual esa unidad electoral pueda ser consultada, y el matrimonio queda de hecho inhabilitado para votar aunque el resto de sus datos (consagracion, CI, etc.) este correcto.
+
+Decision: Se agrega `MATRIMONIO_SIN_CELULAR_DISPONIBLE` a `TipoIncidenciaPadron`, severidad CRITICA. El importador la genera por matrimonio (para cada integrante) cuando, usando el celular tal como viene en la hoja principal -sin aplicar todavia la reconciliacion con `LISTADO JEFES` de DEC-009-, ninguno de los uno o dos integrantes tiene un celular que normalice a un numero valido (se excluyen por igual el celular ausente, el placeholder `0` y los formatos no interpretables: los tres casos ya resuelven a `PersonaExcel.celular = None`). Al ser CRITICA, DEC-016 ya la deja `BLOQUEADA_POR_INCIDENCIA` sin necesidad de tocar la logica de precedencia de estados.
+
+Se evaluo el caso analogo del lado del bloque: un `BLOQUE_NO_CONSAGRADO` cuyo jefe, **despues** de la reconciliacion de DEC-009 (que puede completar un celular faltante desde `LISTADO JEFES`), sigue sin ningun celular valido. Se corrio esa verificacion contra el Excel real sobre los 54 circulos con bloque no consagrado: en los 54, todo circulo con al menos un jefe resuelto (por la hoja principal o por `LISTADO JEFES`) termina con un celular valido en alguno de sus jefes. No aparecio ningun caso real, asi que **no** se agrega `BLOQUE_SIN_CELULAR_JEFE_DISPONIBLE` a la taxonomia: agregar una incidencia sin un solo caso que la ejercite en datos reales seria codigo especulativo, no una regla validada. Si una carga futura del padron produce ese caso, corresponde agregarlo entonces, con el mismo criterio con que se agrego cada tipo de incidencia existente (validado contra datos reales, nunca supuesto).
+
+Consecuencias: Sobre el Excel real, 7 matrimonios (8 personas: seis matrimonios de un solo integrante y uno de dos) quedan con `MATRIMONIO_SIN_CELULAR_DISPONIBLE`; las unidades `MATRIMONIO_CONSAGRADO`/`BLOQUE_NO_CONSAGRADO` habilitadas bajan de 224 a 216 (tres de esos siete tambien tenian todos sus integrantes de baja y hubieran caido en `PENDIENTE_DEFINICION_BAJA`; con esta regla caen directamente en `BLOQUEADA_POR_INCIDENCIA`, que tiene prioridad segun DEC-016). El chequeo se hace con el celular crudo de la hoja principal, no con el resuelto por `LISTADO JEFES`: se verifico contra el Excel real que ningun matrimonio sin celular queda luego completado por la reconciliacion (los 7 matrimonios sin celular valido de la hoja principal no coinciden con ninguna de las filas que la cascada de DEC-009 resuelve), asi que el orden de estas dos comprobaciones no cambia el resultado hoy, pero si una carga futura lo hace, el criterio documentado aca (celular crudo de la hoja principal) es el que rige hasta que se decida lo contrario.

@@ -2,6 +2,7 @@
 
 from app.db.base_class import Base
 from app.models.grupo import Grupo
+from app.models.importacion_padron import ImportacionPadron
 from app.models.incidencia_padron import IncidenciaPadron
 from app.models.matrimonio import Matrimonio
 from app.models.opcion_voto import OpcionVoto
@@ -13,6 +14,7 @@ from app.models.voto import Voto
 __all__ = [
     "Base",
     "Grupo",
+    "ImportacionPadron",
     "IncidenciaPadron",
     "Matrimonio",
     "OpcionVoto",
