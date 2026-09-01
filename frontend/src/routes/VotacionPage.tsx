@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckSquare } from "lucide-react";
 
 import type { HabilitacionConsultaResponse, UnidadElectoralDisponible } from "../api/habilitacion";
 import type { VotoResponse } from "../api/votacion";
@@ -39,7 +40,12 @@ export function VotacionPage() {
   return (
     <main className="app-shell">
       <div className="top-bar">
-        <span className="brand">VOTACION WG</span>
+        <span className="brand">
+          <span className="brand-mark">
+            <CheckSquare size={18} />
+          </span>
+          VOTACION WG
+        </span>
       </div>
 
       {paso === "consulta" && <ConsultaCelularForm onResultado={handleResultado} />}

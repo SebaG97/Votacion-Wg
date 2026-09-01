@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CheckSquare } from "lucide-react";
 
 import { getHealth, type HealthResponse } from "../api/health";
 import { ConnectionStatus } from "../components/ConnectionStatus";
@@ -30,7 +31,12 @@ export function HomePage() {
   return (
     <main className="app-shell">
       <div className="top-bar">
-        <span className="brand">VOTACION WG</span>
+        <span className="brand">
+          <span className="brand-mark">
+            <CheckSquare size={18} />
+          </span>
+          VOTACION WG
+        </span>
         <span className="mode">Estado técnico</span>
       </div>
 

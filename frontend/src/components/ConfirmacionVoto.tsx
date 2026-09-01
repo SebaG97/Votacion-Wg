@@ -19,7 +19,9 @@ export function ConfirmacionVoto({ voto }: ConfirmacionVotoProps) {
 
   return (
     <section className="panel confirmacion-panel">
-      <CheckCircle2 size={48} color="#146c43" />
+      <span className="icon-success">
+        <CheckCircle2 size={44} />
+      </span>
       <p className="eyebrow">Voto registrado</p>
       <h1>Tu voto se registró correctamente</h1>
       <p>{fechaFormateada}</p>

@@ -402,22 +402,49 @@ con Sebad cual de los dos aplica**), y `docs/GUIA_OPERACION_VOTACION.md`
 cerrar, revelar resultados, con el llamado HTTP y el paso equivalente en el
 panel para cada uno).
 
+Validacion contra PostgreSQL real (2026-09-01): Sebad paso el `DATABASE_URL`
+real (`backend/.env`, gitignoreado) de la base v18 administrada de
+DigitalOcean. Se corrio el ciclo completo contra ella, sin usar SQLite en
+ningun paso:
+
+1. La base estaba vacia (sin tablas) antes de empezar -- verificado por
+   lectura antes de tocar nada.
+2. `alembic upgrade head`: las 4 migraciones corrieron sin errores,
+   incluido el indice unico parcial de `uq_votacion_estado_abierta`
+   (`postgresql_where`, nunca ejercitado antes contra Postgres real).
+3. `python -m app.services.padron.importar`: mismo resultado exacto que
+   contra SQLite -- 1113 personas, 571 matrimonios, 93 grupos, 314 unidades
+   electorales (265/16/8/25 por estado), 690 incidencias (72 CRITICA).
+4. Por HTTP contra un backend real corriendo con esa `DATABASE_URL`: crear
+   votacion + 2 opciones, abrir, votar un matrimonio consagrado real, un
+   bloque no consagrado real y un segundo matrimonio consagrado real (los
+   tres casos con datos reales del padron, no sinteticos), un cuarto intento
+   de doble voto sobre la primera unidad devolvio `409` como se esperaba,
+   `GET /resultados` devolvio `409` antes del cierre, `200` con
+   `total_votos=3` despues de cerrar (sin revelar), `POST /revelar` cambio
+   el estado y un segundo `POST /revelar` dio `409` citando la fecha
+   anterior, y el CSV (`?formato=csv`) trajo las mismas tres secciones que
+   contra SQLite.
+5. **Ninguna diferencia de comportamiento encontrada entre SQLite y
+   PostgreSQL** en ningun paso del ciclo.
+6. Limpieza: la votacion de prueba (3 votos ficticios sobre unidades reales)
+   se borro de la base real al terminar, dejando el padron real importado
+   intacto (314 unidades electorales) y ninguna votacion creada -- lista
+   para que se cree la votacion real cuando corresponda, sin que DEC-015
+   bloquee un reimport si el Excel cambia antes de esa fecha.
+
+Pasada manual con navegador real sobre `frontend-admin`: pendiente desde el
+cierre de la Mision 10. Para esta mision se levanto el backend real (SQLite
+local con el padron real ya importado, sin ninguna votacion creada todavia)
+mas `frontend-admin` en `npm run dev`, y Sebad la esta probando el mismo a
+mano desde el navegador (login, dashboard, incidencias, importaciones,
+crear/abrir/cerrar votacion, resultados) -- no hay herramienta de
+navegador/Playwright conectada en esta sesion para hacerlo de forma
+automatizada.
+
 Pendiente para cerrar esta mision:
 
-- **Validacion contra PostgreSQL real**: corrida completa (migraciones,
-  importar padron, abrir votacion, votar casos de prueba, cerrar, revelar,
-  resultados) contra la base v18 real de DigitalOcean. Necesita el
-  `DATABASE_URL` real, que Sebad va a pasar mas adelante -- por ahora, todo
-  lo de esta mision corrio solo contra SQLite (igual que el resto de la
-  suite de pruebas desde la Mision 03).
-- **Pasada manual con navegador real sobre `frontend-admin`**: pendiente
-  desde el cierre de la Mision 10. Para esta mision se levanto el backend
-  real (SQLite local con el padron real ya importado, sin ninguna votacion
-  creada todavia) mas `frontend-admin` en `npm run dev`, y Sebad la esta
-  probando el mismo a mano desde el navegador (login, dashboard, incidencias,
-  importaciones, crear/abrir/cerrar votacion, resultados) -- no hay
-  herramienta de navegador/Playwright conectada en esta sesion para hacerlo
-  de forma automatizada.
+- Confirmacion de Sebad sobre la pasada manual de `frontend-admin` (arriba).
 
 Entregables:
 
@@ -437,8 +464,10 @@ Criterios de aceptacion:
   desde la Mision 08, DEC-022; sin cambios en esta mision).
 - Cumplido: existe una guia clara para operar durante todo el periodo de
   votacion, no solo "el dia" (`docs/GUIA_OPERACION_VOTACION.md`).
-- Pendiente: el ciclo completo corriendo sin diferencias contra PostgreSQL
-  real, y la confirmacion de Sebad sobre la pasada manual de
+- Cumplido: el ciclo completo corre sin diferencias contra PostgreSQL real
+  (migraciones, importar padron, crear/abrir votacion, votar, doble voto
+  bloqueado, cerrar, revelar, resultados y CSV -- ver seccion de arriba).
+- Pendiente: la confirmacion de Sebad sobre la pasada manual de
   `frontend-admin` -- ver "Pendiente para cerrar esta mision" arriba.
 
 ## Proxima Mision Recomendada

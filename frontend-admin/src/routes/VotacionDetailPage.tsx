@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, HelpCircle, Loader2, Vote } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { listarImportaciones, type ImportacionPadron } from "../api/padron";
@@ -150,27 +150,39 @@ export function VotacionDetailPage() {
         <h2>Estado operativo</h2>
         <dl className="stat-grid">
           <div>
-            <dt>Habilitadas</dt>
+            <dt>
+              <CheckCircle2 size={14} /> Habilitadas
+            </dt>
             <dd>{estadoOperativo.unidades_por_estado.habilitada}</dd>
           </div>
           <div>
-            <dt>Bloqueadas por incidencia</dt>
+            <dt>
+              <AlertTriangle size={14} /> Bloqueadas por incidencia
+            </dt>
             <dd>{estadoOperativo.unidades_por_estado.bloqueada_por_incidencia}</dd>
           </div>
           <div>
-            <dt>Pendiente postulantes</dt>
+            <dt>
+              <HelpCircle size={14} /> Pendiente postulantes
+            </dt>
             <dd>{estadoOperativo.unidades_por_estado.pendiente_definicion_postulantes}</dd>
           </div>
           <div>
-            <dt>Pendiente baja</dt>
+            <dt>
+              <HelpCircle size={14} /> Pendiente baja
+            </dt>
             <dd>{estadoOperativo.unidades_por_estado.pendiente_definicion_baja}</dd>
           </div>
           <div>
-            <dt>Votos emitidos</dt>
+            <dt>
+              <Vote size={14} /> Votos emitidos
+            </dt>
             <dd>{estadoOperativo.votos_emitidos}</dd>
           </div>
           <div>
-            <dt>Pendientes de votar</dt>
+            <dt>
+              <Clock3 size={14} /> Pendientes de votar
+            </dt>
             <dd>{estadoOperativo.pendientes}</dd>
           </div>
         </dl>
@@ -241,7 +253,7 @@ export function VotacionDetailPage() {
                 Abrir votación
               </button>
               {!operador.trim() && (
-                <span style={{ marginLeft: 12, color: "#66756d" }}>
+                <span className="hint-text" style={{ marginLeft: 12 }}>
                   Ingresá tu nombre de operador arriba para poder abrir.
                 </span>
               )}
@@ -260,7 +272,7 @@ export function VotacionDetailPage() {
               Cerrar votación
             </button>
             {!operador.trim() && (
-              <span style={{ marginLeft: 12, color: "#66756d" }}>
+              <span className="hint-text" style={{ marginLeft: 12 }}>
                 Ingresá tu nombre de operador arriba para poder cerrar.
               </span>
             )}

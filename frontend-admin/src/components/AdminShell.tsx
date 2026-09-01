@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CheckSquare } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
@@ -11,7 +12,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <main className="app-shell">
       <div className="top-bar">
-        <span className="brand">VOTACION WG · Panel Administrativo</span>
+        <span className="brand">
+          <span className="brand-mark">
+            <CheckSquare size={18} />
+          </span>
+          VOTACION WG · Panel Administrativo
+        </span>
         <nav>
           <NavLink to="/" end className={({ isActive }) => (isActive ? "activo" : "")}>
             Dashboard
