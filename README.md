@@ -23,6 +23,8 @@ VOTACION-WG/
   frontend/
     README.md
     docs/
+  frontend-admin/
+    README.md
   docs/
   .vscode/
   AGENTS.md

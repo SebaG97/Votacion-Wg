@@ -1,0 +1,426 @@
+:root {
+  color: #17201b;
+  background: #eef3f0;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 32px;
+  background:
+    linear-gradient(135deg, rgba(29, 88, 85, 0.14), transparent 38%),
+    linear-gradient(315deg, rgba(203, 68, 49, 0.1), transparent 42%),
+    #eef3f0;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: min(1100px, 100%);
+  margin: 0 auto 40px;
+  color: #34453d;
+}
+
+.brand {
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.top-bar nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.top-bar nav a {
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #1e5b58;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.top-bar nav a.activo {
+  background: #dff3e8;
+  color: #146c43;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operador-input {
+  padding: 8px 10px;
+  border: 1px solid #bfd0c6;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  width: 180px;
+}
+
+.content {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  border: 1px solid #cfdad3;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 16px 40px rgba(23, 32, 27, 0.08);
+}
+
+.panel.ancho {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.panel h1 {
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  margin-bottom: 8px;
+}
+
+.panel h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #627168;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  color: #17201b;
+}
+
+.text-input {
+  padding: 12px 14px;
+  border: 1px solid #bfd0c6;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #17201b;
+  width: 100%;
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.field label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #34453d;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #1d5855;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #bfd0c6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e5b58;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #cb4431;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #a33727;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.error-message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f9e4df;
+  color: #a33727;
+  font-weight: 600;
+}
+
+.warning-banner {
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #fdf3d8;
+  color: #7a5b06;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.loading-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #5d6d64;
+  margin-top: 16px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.stat-grid div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d8e2dc;
+  border-radius: 8px;
+  background: #f8faf8;
+}
+
+dt {
+  margin-bottom: 8px;
+  color: #66756d;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1e2b24;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge.borrador {
+  background: #e6e9ea;
+  color: #4a5560;
+}
+
+.badge.abierta {
+  background: #dff3e8;
+  color: #146c43;
+}
+
+.badge.cerrada {
+  background: #fdf3d8;
+  color: #7a5b06;
+}
+
+.badge.resultados_revelados {
+  background: #dcecf0;
+  color: #255f6b;
+}
+
+.badge.critica {
+  background: #f9e4df;
+  color: #a33727;
+}
+
+.badge.alta {
+  background: #fdf3d8;
+  color: #7a5b06;
+}
+
+.badge.media {
+  background: #dcecf0;
+  color: #255f6b;
+}
+
+.badge.baja {
+  background: #e6e9ea;
+  color: #4a5560;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8e4;
+  vertical-align: top;
+}
+
+th {
+  color: #66756d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+tr.clickable {
+  cursor: pointer;
+}
+
+tr.clickable:hover {
+  background: #f4f8f5;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filters select {
+  padding: 8px 10px;
+  border: 1px solid #bfd0c6;
+  border-radius: 8px;
+  font-size: 0.86rem;
+}
+
+.opcion-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opcion-card {
+  padding: 10px 14px;
+  border: 1px solid #bfd0c6;
+  border-radius: 8px;
+  background: #ffffff;
+  font-weight: 600;
+  color: #17201b;
+}
+
+.spin {
+  animation: spin 1.1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1e5b58;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 20px;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

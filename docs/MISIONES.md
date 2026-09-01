@@ -294,23 +294,28 @@ Fuera de alcance a proposito, es la Mision 10 completa: dashboard, incidencias, 
 
 ## Mision 10 - Frontend Administrativo
 
-Estado: pendiente
+Estado: completada (2026-09-01)
 
-Objetivo: crear vistas administrativas para padron, incidencias, estado y resultados.
+Objetivo: crear el panel administrativo (React, mismo stack que la Mision 09) para operar la votacion de punta a punta: importar el padron, revisar incidencias, gestionar el ciclo de vida de una votacion (crear/cargar opciones/abrir/cerrar) y ver resultados solo cuando corresponde. Nada de esto toca `frontend/` (Mision 09).
 
-Entregables:
+Gaps de backend cerrados primero (DEC-025), encontrados al revisar que endpoints existian realmente para esta mision: `POST /padron/importaciones` (Mision 04) no tenia `require_admin` a pesar de poder reimportar/recrear todo el padron -- un olvido, no una decision, corregido aca. No existia ningun `GET /votaciones` que listara todas las votaciones -- sin el, el panel no tenia forma de descubrir que `votacion_id` administrar salvo `GET /votaciones/abierta` (que solo sirve mientras hay una ABIERTA). Se agregan cuatro endpoints, los cuatro admin-protegidos: `GET /votaciones` (reusa `VotacionResponse`), `GET /padron/importaciones` (reusa `ImportacionPadronResponse`), y `GET /padron/incidencias` + `POST /padron/incidencias/{id}/resolver` (schema nuevo `IncidenciaPadronResponse`, servicio nuevo `app/services/padron/administracion.py`). `resolver_incidencia` es deliberadamente solo trazabilidad administrativa (`resuelto_por`/`resuelto_at`): nunca recalcula `UnidadElectoral.estado`, porque hacerlo exigiria resolver antes DEC-012/013/014 (bajas, circulos de postulantes, doble rol), todavia pendientes de negocio. 111 pruebas de backend (101 antes de esta mision + 10 nuevas: `test_padron_administracion_endpoint.py` completo, mas los casos agregados a `test_padron_endpoint.py` y `test_votacion_endpoint.py`).
 
-- Dashboard operativo.
-- Vista de incidencias.
-- Vista de importaciones.
-- Controles de apertura y cierre.
-- Vista de resultados finales.
+Entregables reales (frontend, `frontend-admin/`, proyecto nuevo separado de `frontend/`):
+
+- `src/api/adminToken.ts` + `src/context/AuthContext.tsx`: el `ADMIN_API_KEY` pegado en el login se guarda en `sessionStorage` (nunca `localStorage` ni hardcodeado) y se manda como header `X-Admin-Token` en cada request (`src/api/client.ts`). Cualquier `401`/`403` real de un endpoint administrativo dispara `notificarNoAutorizado()`, que `AuthContext` escucha para limpiar el token y volver a `/login` -- sin que quede un token invalido reintentando en loop. `src/routes/LoginPage.tsx` valida el token contra `GET /votaciones` antes de entrar, para no parpadear el dashboard y rebotar.
+- `src/routes/DashboardPage.tsx`: lista de votaciones (`GET /votaciones`) con su estado; `src/routes/VotacionDetailPage.tsx` muestra el estado operativo (`GET /votaciones/{id}/estado`) y el resumen de la ultima importacion (el JSON que ya guarda `ImportacionPadron.resumen`, sin recalcular nada) -- nunca un desglose por opcion mientras la votacion no esta CERRADA o RESULTADOS_REVELADOS.
+- `src/routes/IncidenciasPage.tsx`: tabla desde `GET /padron/incidencias`, filtrable por severidad/tipo/resuelta, con "marcar como revisada" (`POST .../resolver`) y una nota visible de que esto no rehabilita ninguna unidad.
+- `src/routes/ImportacionesPage.tsx`: historial (`GET /padron/importaciones`) mas un boton de nueva importacion que exige un segundo paso explicito de confirmacion antes de ejecutar `POST /padron/importaciones` (operacion pesada, nunca a un solo click).
+- `src/routes/VotacionDetailPage.tsx` + `src/routes/CrearVotacionPage.tsx`: crear votacion, cargar opciones en BORRADOR, abrir/cerrar, con los errores del backend (`OtraVotacionAbiertaError`, `VotacionSinOpcionesError`, etc.) traducidos por substring de `detail` en `src/lib/erroresVotacion.ts` -- mismo patron que `clasificarConflicto` de `PapeletaVoto.tsx` (Mision 09, DEC-024).
+- `src/components/ResultadosView.tsx`: el unico punto que llama a `GET /resultados` y `POST /revelar`. `VotacionDetailPage` solo la monta -- nunca oculta en el DOM -- cuando `votacion.estado` es `CERRADA` o `RESULTADOS_REVELADOS` (el tipo de su prop `estado` ya excluye `BORRADOR`/`ABIERTA` en tiempo de compilacion); "revelar" solo se ofrece desde `CERRADA`.
+- Testing (`vitest` + `@testing-library/react`, mismo scaffold que la Mision 09): 24 pruebas en 4 archivos. `src/test/no-resultados-prematuros.test.tsx` es la version invertida del test de la Mision 09 -- como este panel si necesita llamar a `/resultados`/`/revelar`, en vez de un grep estatico verifica en tiempo de ejecucion que esas dos llamadas nunca ocurren con `BORRADOR`/`ABIERTA` (y que si ocurren con `CERRADA`/`RESULTADOS_REVELADOS`). `src/test/sesion-401.test.tsx` y `src/api/client.test.ts` verifican que un `401`/`403` real limpia el token y redirige a `/login`. `src/lib/erroresVotacion.test.ts` cubre la traduccion de cada error del backend.
+- Verificacion: `tsc --noEmit` y `vite build` sin errores, 24/24 pruebas de vitest y 111/111 de pytest en verde. No se hizo una pasada manual con navegador real (Playwright) como en la Mision 09 -- queda pendiente antes de operar una votacion real (razonable cubrirlo en la Mision 11).
 
 Criterios de aceptacion:
 
-- El administrador puede monitorear sin ver resultados prematuros.
-- Las incidencias del padron son visibles y accionables.
-- Los resultados solo aparecen cuando corresponde.
+- Cumplido: el administrador puede monitorear (dashboard, estado operativo, resumen de importacion) sin ver resultados prematuros -- verificado por `no-resultados-prematuros.test.tsx`.
+- Cumplido: las incidencias del padron son visibles (`GET /padron/incidencias`, filtrable) y accionables (`POST .../resolver`), con la aclaracion de que resolver es solo trazabilidad.
+- Cumplido: los resultados solo aparecen con la votacion CERRADA o RESULTADOS_REVELADOS, nunca antes.
 
 ## Mision 11 - Prueba General Y Preparacion Operativa
 
@@ -335,9 +340,8 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-Con la Mision 09 completada, el frontend de votacion (consulta por celular y emision de voto) ya consume la API real. Quedan dos misiones, ambas frontend/operativas, no backend "core":
+Con la Mision 10 completada, tanto el frontend de votacion (Mision 09) como el panel administrativo (`frontend-admin/`) consumen la API real. Queda una sola mision:
 
-- Mision 10 - Frontend Administrativo: dashboard, incidencias, importaciones, apertura/cierre y la vista de resultados finales, consumiendo los endpoints administrativos de las Misiones 07 y 08 (incluido `GET /resultados` y `POST /revelar`), protegidos por `require_admin` (DEC-021).
-- Mision 11 - Prueba General Y Preparacion Operativa: validacion end-to-end antes de una votacion real.
+- Mision 11 - Prueba General Y Preparacion Operativa: validacion end-to-end antes de una votacion real, incluida la verificacion manual con navegador real (Playwright) del panel administrativo que la Mision 10 no llego a hacer.
 
-El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): la Mision 09 los consume sin agregarles ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real (Mision 11).
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ni la Mision 09 ni la Mision 10 le agregaron ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real (Mision 11).

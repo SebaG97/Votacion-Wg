@@ -13,7 +13,9 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     secret_key: str = Field(default="change-me", alias="SECRET_KEY")
-    cors_origins: str = Field(default="http://localhost:5173", alias="CORS_ORIGINS")
+    cors_origins: str = Field(
+        default="http://localhost:5173,http://localhost:5174", alias="CORS_ORIGINS"
+    )
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

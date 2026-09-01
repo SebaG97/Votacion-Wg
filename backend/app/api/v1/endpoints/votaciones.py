@@ -52,6 +52,7 @@ from app.services.votacion import (
     cerrar_votacion,
     crear_votacion,
     listar_opciones,
+    listar_votaciones,
     obtener_estado_operativo,
     obtener_resultados,
     obtener_votacion_abierta,
@@ -85,6 +86,17 @@ def abierta(db: Session = Depends(get_db)) -> VotacionAbiertaResponse:
             OpcionAbiertaResponse(id=o.id, nombre=o.nombre, orden=o.orden) for o in opciones
         ],
     )
+
+
+@router.get(
+    "/votaciones",
+    response_model=list[VotacionResponse],
+)
+def listar_votaciones_endpoint(db: Session = Depends(get_db)) -> list[VotacionResponse]:
+    """Todas las votaciones con su estado y fechas (Mision 10, DEC-025): sin
+    esto el panel administrativo no tenia forma de descubrir que
+    `votacion_id` administrar."""
+    return [VotacionResponse.model_validate(v) for v in listar_votaciones(db)]
 
 
 @router.post(

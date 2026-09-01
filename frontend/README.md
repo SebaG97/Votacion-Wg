@@ -20,12 +20,7 @@ Implementadas (Mision 09, `/`):
 - Emision de voto (papeleta de la votacion abierta).
 - Confirmacion de voto registrado, sin ningun camino para reenviar el mismo voto.
 
-Pendientes (Mision 10, panel administrativo):
-
-- Panel administrativo.
-- Incidencias del padron.
-- Estado de votacion.
-- Resultados finales.
+El panel administrativo (Mision 10: dashboard, incidencias, importaciones, apertura/cierre y resultados finales) es un proyecto separado, `frontend-admin/` -- no forma parte de este frontend.
 
 ## Principios De UX
 

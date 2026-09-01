@@ -85,6 +85,14 @@ def obtener_votacion_abierta(db: Session) -> Votacion:
     return votacion
 
 
+def listar_votaciones(db: Session) -> list[Votacion]:
+    """Todas las votaciones, mas nueva primero (Mision 10, DEC-025): el panel
+    administrativo la usa para descubrir que `votacion_id` administrar, algo
+    que antes solo era posible conociendolo de memoria o via
+    `obtener_votacion_abierta` (que solo sirve mientras hay una ABIERTA)."""
+    return db.query(Votacion).order_by(Votacion.id.desc()).all()
+
+
 def crear_votacion(db: Session, *, nombre: str) -> Votacion:
     votacion = Votacion(nombre=nombre, estado=EstadoVotacion.BORRADOR)
     db.add(votacion)

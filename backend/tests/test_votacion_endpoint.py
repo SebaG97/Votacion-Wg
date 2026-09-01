@@ -198,6 +198,45 @@ def test_endpoints_administrativos_sin_token_dan_401_o_403(migrated_db_url, monk
         _liberar(engine)
 
 
+def test_get_votaciones_lista_todas_mas_nueva_primero(migrated_db_url, monkeypatch):
+    """DEC-025 (Mision 10): sin este endpoint el panel administrativo no
+    tenia forma de descubrir que `votacion_id` administrar."""
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        primera = client.post(
+            "/api/v1/votaciones", json={"nombre": "Consejo 2026"}, headers=_headers()
+        )
+        segunda = client.post(
+            "/api/v1/votaciones", json={"nombre": "Otra Votacion"}, headers=_headers()
+        )
+
+        response = client.get("/api/v1/votaciones", headers=_headers())
+
+        assert response.status_code == 200
+        body = response.json()
+        ids = [v["id"] for v in body]
+        assert ids.index(segunda.json()["id"]) < ids.index(primera.json()["id"])
+        assert all(
+            {"id", "nombre", "estado", "fecha_apertura", "fecha_cierre"} <= v.keys()
+            for v in body
+        )
+    finally:
+        _liberar(engine)
+
+
+def test_get_votaciones_sin_token_da_401_o_403(migrated_db_url, monkeypatch):
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        monkeypatch.setattr(settings, "admin_api_key", "")
+        assert client.get("/api/v1/votaciones").status_code == 403
+
+        monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+        assert client.get("/api/v1/votaciones").status_code == 401
+    finally:
+        _liberar(engine)
+
+
 def test_votos_y_habilitaciones_consultar_siguen_sin_proteccion(migrated_db_url, monkeypatch):
     """DEC-020 documenta que `POST /votaciones/{id}/votos` y
     `POST /habilitaciones/consultar` quedan sin control de acceso a proposito
