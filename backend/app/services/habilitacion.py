@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models import IncidenciaPadron, Matrimonio, Persona, UnidadElectoral, Votacion, Voto
 from app.models.enums import EstadoUnidadElectoral as Estado
-from app.models.enums import EstadoVotacion, SeveridadIncidencia, TipoUnidadElectoral
+from app.models.enums import SeveridadIncidencia, TipoUnidadElectoral
 from app.schemas.habilitacion import (
     HabilitacionConsultaResponse,
     IncidenciaRespuesta,
@@ -28,22 +28,15 @@ from app.schemas.habilitacion import (
     UnidadElectoralDisponible,
 )
 from app.services.padron.normalizacion import normalizar_celular
+from app.services.votacion import NoHayVotacionAbiertaError, obtener_votacion_abierta
 
 MOTIVO_YA_VOTADO = "YA_VOTADO"
 
-
-class NoHayVotacionAbiertaError(RuntimeError):
-    """No existe ninguna `Votacion` en estado ABIERTA contra la cual consultar."""
-
-
-def _votacion_abierta(db: Session) -> Votacion:
-    votacion = db.query(Votacion).filter(Votacion.estado == EstadoVotacion.ABIERTA).one_or_none()
-    if votacion is None:
-        raise NoHayVotacionAbiertaError(
-            "No hay ninguna votacion en estado ABIERTA: la consulta de habilitacion no "
-            "puede resolverse."
-        )
-    return votacion
+# Re-exportado: `NoHayVotacionAbiertaError` vivia en este modulo antes de la
+# Mision 09 (DEC-023), que lo movio a `app/services/votacion.py` junto con
+# `obtener_votacion_abierta` para reusarlo desde `GET /votaciones/abierta`.
+# Se mantiene importable desde aca para no romper el codigo y los tests que
+# ya lo referencian por este camino.
 
 
 def _incidencias_criticas_matrimonio(db: Session, matrimonio: Matrimonio) -> list[IncidenciaPadron]:
@@ -171,7 +164,7 @@ def consultar_habilitacion(db: Session, celular: str) -> HabilitacionConsultaRes
     (DEC-018): eso se resuelve antes de tocar el padron, porque sin votacion
     abierta ninguna unidad puede ofrecerse para votar.
     """
-    votacion = _votacion_abierta(db)
+    votacion = obtener_votacion_abierta(db)
 
     celular_normalizado, _motivo_rechazo = normalizar_celular(celular)
     if celular_normalizado is None:

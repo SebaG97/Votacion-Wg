@@ -261,24 +261,36 @@ Con esto se cierra el backend "core" del sistema (Misiones 00-08). Las Misiones 
 
 ## Mision 09 - Frontend De Votacion
 
-Estado: pendiente
+Estado: completada (2026-09-01)
 
-Objetivo: crear la experiencia de consulta por celular y emision de voto.
+Objetivo: crear la experiencia de consulta por celular y emision de voto, conectada a la API real (sin mockear), sin tocar nada del panel administrativo (eso es la Mision 10 completa).
 
-Entregables:
+Gap de backend cerrado primero (DEC-023): el frontend de votacion necesita la papeleta (que votacion esta abierta y sus opciones) para poder votar, pero `GET /votaciones/{id}/opciones` (Mision 07) esta protegido por `require_admin` -- el votante no tiene ese token. Se agrego `GET /api/v1/votaciones/abierta`, publico, que devuelve `{votacion_id, nombre, opciones: [{id, nombre, orden}]}` de la unica `Votacion` `ABIERTA`, o 404 si no hay ninguna. La busqueda de "la unica votacion ABIERTA" (antes `_votacion_abierta`, privada de `app/services/habilitacion.py`, DEC-018) se factorizo a `obtener_votacion_abierta` en `app/services/votacion.py`, reusada por ambos en vez de escribirla una tercera vez; `habilitacion.py` re-exporta `NoHayVotacionAbiertaError` desde ahi para no romper imports existentes. `backend/tests/test_votacion_abierta_endpoint.py` (3 pruebas) cubre papeleta con opciones, 404 sin votacion abierta y que la respuesta no expone nada mas alla de `votacion_id`/`nombre`/`opciones`. 102 pruebas de backend siguen pasando.
 
-- Pantalla de consulta por celular.
-- Pantalla de seleccion de unidad electoral.
-- Pantalla de voto.
-- Pantalla de confirmacion.
-- Estados de error e incidencia.
+Entregables reales (frontend):
+
+- `frontend/src/api/client.ts`: gana `apiPost` (antes solo existia `apiGet`), y ambos comparten un `ejecutar` interno que distingue una falla HTTP real (`ApiError.status` con codigo) de una falla de red (`ApiError.status === undefined`, `fetch` nunca respondio) -- asi el resto del codigo puede armar el mensaje de "sin conexion" sin duplicar el `try/catch` de red en cada pantalla. `ApiError` ahora tambien lleva `detail`, el texto que FastAPI manda en `{"detail": "..."}"`, usado para distinguir `PersonaNoAutorizadaError` (400) del resto de los 400 posibles sin adivinar por el codigo de estado solo.
+- `frontend/src/api/habilitacion.ts` y `frontend/src/api/votacion.ts`: clientes tipados contra `POST /habilitaciones/consultar`, `GET /votaciones/abierta` y `POST /votaciones/{id}/votos`, con los tipos de respuesta calcados de los schemas Pydantic reales (verificado en el navegador contra la API real, no solo contra los tipos).
+- `frontend/src/lib/motivos.ts`: traduce `motivo_no_disponible` (`BLOQUEADA_POR_INCIDENCIA`, `YA_VOTADO`, `PENDIENTE_DEFINICION_POSTULANTES`/`_BAJA`) a lenguaje claro, y etiqueta cada unidad electoral segun su tipo ("Votar por tu matrimonio consagrado" / "Votar por el bloque de tu círculo") -- nunca el codigo tecnico crudo en pantalla. `frontend/src/lib/celular.ts`: validacion basica de celular en el cliente (9 o 10 digitos, no todo ceros) antes de llamar a la API; el backend (`normalizar_celular`) sigue siendo la fuente de verdad. `frontend/src/lib/errores.ts`: mensaje generico por tipo de `ApiError` (sin conexion, sin votacion abierta, error generico), sin exponer detalle tecnico del backend en las pantallas que no lo necesitan.
+- `frontend/src/components/ConsultaCelularForm.tsx`: input + submit contra `POST /habilitaciones/consultar`, con sus tres estados (cargando, celular invalido -- validado antes de llamar a la API --, sin conexion).
+- `frontend/src/components/ResultadoConsulta.tsx`: interpreta `HabilitacionConsultaResponse` -- celular inexistente (`unidades: []`) muestra "este celular no está en el padrón"; cada unidad no disponible muestra su motivo traducido; el doble rol de jefe consagrado se muestra como dos botones separados y claramente etiquetados, nunca combinados (criterio de aceptacion explicito de esta mision, cubierto por test).
+- `frontend/src/components/PapeletaVoto.tsx`: si `personas.length > 1` (celular compartido entre conyuges, DEC-008) pide confirmar cual de las personas listadas esta votando antes de mostrar la papeleta; si el backend rechaza esa persona (`PersonaNoAutorizadaError`, 400, detectado por el texto "autorizada" en `ApiError.detail`) muestra un error claro y vuelve a la lista para elegir otra, sin adivinar de antemano quien es el jefe o el integrante correcto. Trae la papeleta de `GET /votaciones/abierta`, deja elegir una opcion y hace `POST /votaciones/{id}/votos`. El boton de confirmar se deshabilita apenas se envia (`enviando`, evita doble submit por doble click) y desaparece del todo al pasar a la siguiente pantalla (evita el reintento). Un 409 de "ya votado" (doble pestaña) se delega al padre como mensaje amigable, nunca como error generico.
+- `frontend/src/components/ConfirmacionVoto.tsx`: pantalla final con la fecha/hora del voto (`fecha_emision`, formateada localmente), sin ningun boton -- ni de reenvio ni de navegacion -- para que no exista ningun camino de volver a emitir el mismo voto desde ahi.
+- `frontend/src/routes/VotacionPage.tsx`: orquesta las cinco pantallas (`consulta` -> `resultado` -> `papeleta` -> `confirmado` / `ya-votado`) con estado local, sin routing adicional. `App.tsx` la monta en `/`; la pantalla de estado tecnico de la Mision 01 (`HomePage`) se movio a `/estado`.
+- Regla dura verificada: ningun componente de esta mision llama a `GET /resultados` ni a `POST /revelar` -- `frontend/src/test/no-resultados.test.ts` escanea todo `frontend/src/` (excluyendo la carpeta `test/`) buscando esas dos rutas como texto literal y falla si aparecen; complementado con `grep -rn "/resultados|/revelar" frontend/src` a mano, que solo encuentra el propio test.
+- Testing: se agrego `vitest` + `@testing-library/react` (+ `@testing-library/user-event`, `@testing-library/jest-dom`, `jsdom`) al scaffold, que no tenia ningun framework de testing de frontend (`frontend/vite.config.ts`, seccion `test`; `frontend/src/test/setup.ts`; script `npm test` en `package.json`). 28 pruebas de componente en 8 archivos, todas mockeando la capa de API (`vi.mock`, sin depender del backend real corriendo): celular invalido (sin llamar a la API), estado de carga, sin conexion, celular no encontrado, unidad bloqueada mostrando el motivo traducido sin el codigo crudo, doble rol mostrando dos botones separados, celular compartido pidiendo confirmar la persona, persona rechazada dejando elegir otra, voto exitoso deshabilitando el boton de reintento, 409 de voto duplicado mostrado como "tu voto ya fue registrado", y dos pruebas de integracion end-to-end sobre `VotacionPage` (flujo completo exitoso, y el 409 llegando hasta la pantalla final).
+- Verificacion manual en navegador real (no solo mockeada): se corrieron `alembic upgrade head` + `seed_dev.py` sobre un SQLite local, se abrio una `Votacion` con dos opciones via los endpoints administrativos, se levantaron `uvicorn` y `npm run dev`, y se manejo un Chrome real con Playwright contra ambos servidores -- flujo completo de celular compartido (pide confirmar persona, vota, pantalla de confirmacion sin ningun boton), celular inexistente ("no está en el padrón") y jefe de bloque no consagrado (opcion unica, voto directo). Sin errores de consola mas alla de un 404 de `/favicon.ico` (preexistente del scaffold de la Mision 01, no de esta mision).
 
 Criterios de aceptacion:
 
-- El usuario entiende cuando no esta habilitado.
-- El usuario con dos roles puede elegir claramente que voto emitir.
-- La interfaz no muestra resultados.
-- El flujo impide reintentos ambiguos despues de votar.
+- Cumplido: el usuario entiende cuando no esta habilitado -- celular inexistente, o cada unidad con su motivo traducido.
+- Cumplido: el usuario con dos roles (doble rol de jefe consagrado) puede elegir claramente que voto emitir -- dos botones separados y etiquetados, nunca combinados.
+- Cumplido: la interfaz no muestra resultados -- verificado por busqueda automatizada (`no-resultados.test.ts`) y manual.
+- Cumplido: el flujo impide reintentos ambiguos despues de votar -- boton deshabilitado durante el envio, pantalla de confirmacion sin ningun boton, y el 409 de voto duplicado se muestra como mensaje amigable en vez de reintento.
+
+**Fix post-commit original (mismo dia): DEC-024** -- `PapeletaVoto.tsx` trataba cualquier `409` de `POST /votos` como voto duplicado, pero ese endpoint devuelve `409` para tres errores distintos (`VotoDuplicadoError`, `VotacionNoDisponibleError`, `UnidadElectoralNoDisponibleError`); en los ultimos dos el voto nunca se registro y la pantalla afirmaba lo contrario. Corregido clasificando por el texto de `detail` (`clasificarConflicto`, sin tocar el backend); solo el duplicado real dispara `onYaVotado()`, los otros dos muestran un mensaje que invita a reintentar. Dos pruebas nuevas en `PapeletaVoto.test.tsx` verifican que esos dos casos no llaman a `onYaVotado`.
+
+Fuera de alcance a proposito, es la Mision 10 completa: dashboard, incidencias, importaciones, apertura/cierre y resultados finales.
 
 ## Mision 10 - Frontend Administrativo
 
@@ -323,10 +335,9 @@ Criterios de aceptacion:
 
 ## Proxima Mision Recomendada
 
-Con la Mision 08 completada, se cierra el backend "core" del sistema (Misiones 00-08: padron, habilitacion, voto, administracion de votacion y resultados). Las tres misiones restantes son frontend y preparacion operativa, no backend nuevo:
+Con la Mision 09 completada, el frontend de votacion (consulta por celular y emision de voto) ya consume la API real. Quedan dos misiones, ambas frontend/operativas, no backend "core":
 
-- Mision 09 - Frontend De Votacion: la experiencia de consulta por celular y emision de voto, consumiendo los endpoints ya existentes de habilitacion (Mision 05) y voto (Mision 06).
-- Mision 10 - Frontend Administrativo: dashboard, incidencias, importaciones, apertura/cierre y la vista de resultados finales, consumiendo los endpoints administrativos de las Misiones 07 y 08 (incluido `GET /resultados` y `POST /revelar`).
+- Mision 10 - Frontend Administrativo: dashboard, incidencias, importaciones, apertura/cierre y la vista de resultados finales, consumiendo los endpoints administrativos de las Misiones 07 y 08 (incluido `GET /resultados` y `POST /revelar`), protegidos por `require_admin` (DEC-021).
 - Mision 11 - Prueba General Y Preparacion Operativa: validacion end-to-end antes de una votacion real.
 
-El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): no es parte de ninguna mision de backend "core", y conviene resolverlo antes de operar una votacion real (Mision 11) o al definir el frontend de votacion (Mision 09), que es quien primero necesita autenticar a la persona que consulta/vota.
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): la Mision 09 los consume sin agregarles ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real (Mision 11).

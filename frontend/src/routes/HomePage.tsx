@@ -31,7 +31,7 @@ export function HomePage() {
     <main className="app-shell">
       <div className="top-bar">
         <span className="brand">VOTACION WG</span>
-        <span className="mode">Mision 01</span>
+        <span className="mode">Estado técnico</span>
       </div>
 
       <ConnectionStatus data={data} error={error} isLoading={isLoading} onRetry={loadHealth} />

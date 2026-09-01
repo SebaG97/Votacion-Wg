@@ -1,11 +1,18 @@
-"""Endpoints de administracion de votacion (Mision 07): crear, cargar/listar
-opciones, abrir, cerrar y consultar el estado operativo.
+"""Endpoints de votacion: administracion (Mision 07) y consulta publica de la
+papeleta (Mision 09).
 
-Todos protegidos por `require_admin` (`app/api/deps.py`, DEC-021). A
-diferencia de `POST /api/v1/votaciones/{id}/votos` (Mision 06) y
+Los endpoints de administracion -- crear, cargar/listar opciones, abrir,
+cerrar, estado operativo, revelar y resultados -- estan todos protegidos por
+`require_admin` (`app/api/deps.py`, DEC-021, `router`). A diferencia de
+`POST /api/v1/votaciones/{id}/votos` (Mision 06) y
 `POST /api/v1/habilitaciones/consultar` (Mision 05), que siguen sin control
 de acceso a proposito (DEC-020): esos son de uso operativo, estos son
 administrativos.
+
+`GET /api/v1/votaciones/abierta` (`public_router`, DEC-023) es la excepcion
+deliberada: el frontend de votacion necesita la papeleta de la votacion
+abierta para poder votar y no tiene el token administrativo, igual que los
+dos endpoints operativos de arriba.
 """
 
 from __future__ import annotations
@@ -21,14 +28,17 @@ from app.db.session import get_db
 from app.schemas.votacion import (
     AbrirVotacionRequest,
     CerrarVotacionRequest,
+    OpcionAbiertaResponse,
     OpcionVotoCreateRequest,
     OpcionVotoResponse,
+    VotacionAbiertaResponse,
     VotacionCreateRequest,
     VotacionEstadoResponse,
     VotacionResponse,
     VotacionResultadosResponse,
 )
 from app.services.votacion import (
+    NoHayVotacionAbiertaError,
     OtraVotacionAbiertaError,
     ResultadosBloqueadosError,
     ResultadosYaReveladosError,
@@ -44,10 +54,37 @@ from app.services.votacion import (
     listar_opciones,
     obtener_estado_operativo,
     obtener_resultados,
+    obtener_votacion_abierta,
     revelar_resultados,
 )
 
 router = APIRouter(dependencies=[Depends(require_admin)])
+public_router = APIRouter()
+
+
+@public_router.get(
+    "/votaciones/abierta",
+    response_model=VotacionAbiertaResponse,
+)
+def abierta(db: Session = Depends(get_db)) -> VotacionAbiertaResponse:
+    """Papeleta de la unica votacion ABIERTA: sin `require_admin` (DEC-023),
+    a diferencia de todo lo demas en este archivo. Reusa
+    `obtener_votacion_abierta` (`app/services/votacion.py`), la misma
+    busqueda que ya usaba `app/services/habilitacion.py` (DEC-018), en vez de
+    repetirla."""
+    try:
+        votacion = obtener_votacion_abierta(db)
+    except NoHayVotacionAbiertaError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    opciones = listar_opciones(db, votacion.id)
+    return VotacionAbiertaResponse(
+        votacion_id=votacion.id,
+        nombre=votacion.nombre,
+        opciones=[
+            OpcionAbiertaResponse(id=o.id, nombre=o.nombre, orden=o.orden) for o in opciones
+        ],
+    )
 
 
 @router.post(

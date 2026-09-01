@@ -61,10 +61,27 @@ class ResultadosBloqueadosError(RuntimeError):
     exponer ningun conteo por opcion."""
 
 
+class NoHayVotacionAbiertaError(RuntimeError):
+    """No existe ninguna `Votacion` en estado ABIERTA."""
+
+
 def _obtener_votacion(db: Session, votacion_id: int) -> Votacion:
     votacion = db.get(Votacion, votacion_id)
     if votacion is None:
         raise VotacionNoEncontradaError(f"La votacion {votacion_id} no existe.")
+    return votacion
+
+
+def obtener_votacion_abierta(db: Session) -> Votacion:
+    """Busca la unica `Votacion` en estado ABIERTA (DEC-018: se asume que existe
+    como maximo una a la vez). Punto unico reusado por `app/services/habilitacion.py`
+    y por `GET /api/v1/votaciones/abierta` (Mision 09, DEC-023) -- antes de esta
+    factorizacion cada uno tenia su propia copia equivalente de esta consulta."""
+    votacion = db.query(Votacion).filter(Votacion.estado == EstadoVotacion.ABIERTA).one_or_none()
+    if votacion is None:
+        raise NoHayVotacionAbiertaError(
+            "No hay ninguna votacion en estado ABIERTA."
+        )
     return votacion
 
 

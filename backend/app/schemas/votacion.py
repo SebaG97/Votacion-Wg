@@ -90,6 +90,27 @@ class ResultadoGrupo(BaseModel):
     participacion: float | None
 
 
+class OpcionAbiertaResponse(BaseModel):
+    id: int
+    nombre: str
+    orden: int | None
+
+
+class VotacionAbiertaResponse(BaseModel):
+    """Papeleta publica de la unica votacion ABIERTA (Mision 09, DEC-023).
+
+    A diferencia del resto de este modulo, `GET /votaciones/abierta` no esta
+    protegido por `require_admin`: el frontend de votacion (Mision 09) no
+    tiene el token administrativo y necesita saber contra que votacion y
+    opciones puede votar. El nombre de las opciones no es un resultado --no
+    revela ningun conteo-- asi que exponerlo antes del cierre no viola
+    REGLAS_NEGOCIO.md."""
+
+    votacion_id: int
+    nombre: str
+    opciones: list[OpcionAbiertaResponse]
+
+
 class VotacionResultadosResponse(BaseModel):
     """Resultados por opcion, tipo de unidad electoral y grupo (Mision 08,
     DEC-022). Deliberadamente no cruza grupo x opcion: muchos circulos tienen

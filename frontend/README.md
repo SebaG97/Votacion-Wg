@@ -10,12 +10,18 @@ Interfaz del sistema VOTACION WG.
 - React Router
 - Cliente HTTP tipado contra `VITE_API_BASE_URL`
 
-## Pantallas Iniciales
+## Pantallas
+
+Implementadas (Mision 09, `/`):
 
 - Consulta por celular.
-- Seleccion de unidad electoral cuando aplique.
-- Emision de voto.
-- Confirmacion de voto registrado.
+- Resultado de la consulta / seleccion de unidad electoral (incluido el doble rol de jefe consagrado, mostrado como dos opciones separadas).
+- Confirmacion de persona cuando el celular es compartido entre conyuges (DEC-008).
+- Emision de voto (papeleta de la votacion abierta).
+- Confirmacion de voto registrado, sin ningun camino para reenviar el mismo voto.
+
+Pendientes (Mision 10, panel administrativo):
+
 - Panel administrativo.
 - Incidencias del padron.
 - Estado de votacion.
@@ -61,3 +67,12 @@ GET /health
 cd frontend
 npm run build
 ```
+
+## Tests
+
+```powershell
+cd frontend
+npm test
+```
+
+`vitest` + `@testing-library/react`, mockeando la capa de API (`vi.mock`): no depende del backend real corriendo.
