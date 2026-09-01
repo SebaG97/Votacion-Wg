@@ -44,7 +44,7 @@ export function VotacionPage() {
           <span className="brand-mark">
             <CheckSquare size={18} />
           </span>
-          VOTACION WG
+          VOTACION
         </span>
       </div>
 

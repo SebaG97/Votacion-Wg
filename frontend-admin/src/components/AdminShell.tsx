@@ -16,7 +16,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <span className="brand-mark">
             <CheckSquare size={18} />
           </span>
-          VOTACION WG · Panel Administrativo
+          VOTACION · Panel Administrativo
         </span>
         <nav>
           <NavLink to="/" end className={({ isActive }) => (isActive ? "activo" : "")}>

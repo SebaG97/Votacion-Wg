@@ -35,7 +35,7 @@ export function HomePage() {
           <span className="brand-mark">
             <CheckSquare size={18} />
           </span>
-          VOTACION WG
+          VOTACION
         </span>
         <span className="mode">Estado técnico</span>
       </div>

@@ -46,7 +46,7 @@ export function LoginPage() {
     <main className="app-shell">
       <section className="panel">
         <p className="eyebrow">Panel administrativo</p>
-        <h1>VOTACION WG</h1>
+        <h1>VOTACION</h1>
         <p>Pegá el token administrativo (X-Admin-Token) para continuar.</p>
 
         <form onSubmit={(e) => void handleSubmit(e)}>
