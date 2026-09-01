@@ -17,6 +17,7 @@ class Settings(BaseSettings):
         default="http://localhost:5173,http://localhost:5174", alias="CORS_ORIGINS"
     )
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
+    rate_limit_por_minuto: int = Field(default=20, alias="RATE_LIMIT_POR_MINUTO")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

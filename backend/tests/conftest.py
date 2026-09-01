@@ -5,9 +5,21 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.db.session import _build_engine
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """El `Limiter` de `app.core.rate_limit` (DEC-029) es un singleton a nivel
+    de modulo compartido por todo el proceso de pytest: sin este reset, los
+    contadores se acumulan entre pruebas y una prueba puede recibir un 429
+    inesperado solo por correr despues de otras que ya pegaron a los mismos
+    endpoints, sin relacion con lo que esa prueba intenta verificar."""
+    limiter.reset()
+    yield
 
 
 def _alembic_config(db_url: str) -> Config:

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import RATE_LIMIT_OPERATIVO, limiter
 from app.db.session import get_db
 from app.schemas.habilitacion import HabilitacionConsultaRequest, HabilitacionConsultaResponse
 from app.services.habilitacion import NoHayVotacionAbiertaError, consultar_habilitacion
@@ -13,8 +14,9 @@ router = APIRouter()
     response_model=HabilitacionConsultaResponse,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit(RATE_LIMIT_OPERATIVO)
 def consultar(
-    body: HabilitacionConsultaRequest, db: Session = Depends(get_db)
+    request: Request, body: HabilitacionConsultaRequest, db: Session = Depends(get_db)
 ) -> HabilitacionConsultaResponse:
     try:
         return consultar_habilitacion(db, body.celular)

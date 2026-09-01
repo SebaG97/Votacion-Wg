@@ -319,9 +319,105 @@ Criterios de aceptacion:
 
 ## Mision 11 - Prueba General Y Preparacion Operativa
 
-Estado: pendiente
+Estado: en curso (2026-09-01)
 
 Objetivo: validar el sistema completo antes de usarlo en una votacion real.
+
+Resolucion de las tres decisiones de negocio pendientes desde la Mision 02,
+autorizada explicitamente por Sebad para que el orquestador las resuelva con
+el razonamiento mas logico disponible -- a diferencia de DEC-017, **no** son
+una confirmacion del dueño real del Excel:
+
+- **DEC-014 (doble rol de jefe consagrado)**: resuelta sin ningun cambio de
+  codigo. `docs/REGLAS_NEGOCIO.md` ya decia textualmente que la persona con
+  doble rol debe ver "opciones separadas" y registrar "cada voto con su
+  unidad electoral" -- exactamente lo implementado desde la Mision 06
+  (DEC-020). Documentado en DEC-026.
+- **DEC-012 (bajas de personas)**: resuelta hacia "no vota". Las 8 unidades
+  en `PENDIENTE_DEFINICION_BAJA` (verificado de nuevo contra el Excel real:
+  siguen siendo exactamente 8 de 314) son, por definicion de la regla de
+  DEC-016, unidades sin un solo integrante activo. Quedan bloqueadas de
+  forma **permanente** para esta eleccion, reutilizando el estado que ya
+  existia -- sin cambio de esquema ni de importador. Documentado en DEC-027.
+- **DEC-013 (circulos de postulantes)**: resuelta hacia "no votan este
+  ciclo". Las 25 unidades en `PENDIENTE_DEFINICION_POSTULANTES` (verificado
+  de nuevo contra el Excel real) quedan bloqueadas de forma **permanente**,
+  mismo criterio y mismo estado reutilizado. Documentado en DEC-028.
+- Unico cambio de codigo asociado: `frontend/src/lib/motivos.ts` deja de
+  decir "Todavía no está habilitada para votar." (ya no es preciso una vez
+  que la decision es definitiva) y pasa a decir "Esta unidad no tiene voto
+  habilitado en esta elección.", con su prueba actualizada. No hizo falta
+  ningun cambio en `frontend-admin` -- no tiene un mensaje equivalente
+  orientado al votante.
+- Impacto en los numeros: de 314 unidades electorales, 265 `HABILITADA`
+  (sin cambio) + 16 `BLOQUEADA_POR_INCIDENCIA` (sin cambio) + 33 (25 + 8)
+  bloqueadas de forma permanente por estas dos decisiones. El total votable
+  de esta eleccion sigue siendo 265, igual que lo que ya se contaba como
+  habilitado antes de esta mision.
+
+Endurecimiento para operacion 24/7 (DEC-029): `POST /habilitaciones/consultar`
+y `POST /votaciones/{id}/votos` siguen sin control de acceso a proposito
+(DEC-020) -- restringir por red no aplica a un sistema expuesto en internet
+por dias o semanas, y una contrasena compartida no aporta trazabilidad real.
+Se agrego rate limiting por IP (`slowapi`, `backend/app/core/rate_limit.py`):
+`RATE_LIMIT_POR_MINUTO` (default 20/minuto), `429` al superarlo, resuelto
+contra la IP real del cliente (`get_client_ip`, con soporte de
+`X-Forwarded-For` para no rate-limitar a todos los votantes juntos detras de
+un proxy). No reemplaza autenticacion real por votante -- eso sigue fuera de
+alcance, igual que ya quedo documentado en DEC-020.
+
+Dataset de prueba y casos criticos: `backend/tests/test_mision11_casos_criticos.py`
+(12 pruebas nuevas), un circulo mixto sintetico que ejercita de punta a
+punta -- habilitacion y registro de voto real, servicios de las Misiones
+05/06 -- cada caso pedido: matrimonio consagrado votando, bloque no
+consagrado votando, circulo mixto (los dos tipos de unidad en el mismo
+circulo, votando de forma independiente), doble rol de jefe consagrado (dos
+votos independientes), doble voto sobre la misma unidad (bloqueado,
+`VotoDuplicadoError`, sin segunda fila), celular duplicado entre matrimonios
+distintos (las dos unidades candidatas bloqueadas por su propia incidencia
+CRITICA), celular inexistente (no habilitado), y una unidad en cada uno de
+los cuatro estados posibles -- incluidas las dos resoluciones nuevas de esta
+mision -- confirmando el `motivo_no_disponible` exacto que devuelve cada
+una. Ademas, `backend/tests/test_rate_limit.py` (3 pruebas: `429` al superar
+el limite en cada uno de los dos endpoints, y aislamiento por IP via
+`X-Forwarded-For`). **126 pruebas de backend en verde** (111 previas + 3 +
+12), y las **30 pruebas de `frontend/`** (28 previas + 2 de la Mision 09
+sin cambio) siguen en verde con el mensaje nuevo.
+
+Verificado contra el Excel real (reimportado de nuevo para esta mision, no
+solo contra los fixtures sinteticos de los tests): personas, matrimonios,
+grupos, unidades electorales e incidencias coinciden exactamente con los
+numeros ya documentados en la Mision 04/DEC-019 -- 314 unidades, 265/16/8/25
+por estado.
+
+Checklist operativo, plan de backup y guia operativa (documentos, no
+codigo): `docs/CHECKLIST_OPERATIVO.md` (que revisar antes de abrir, durante
+la votacion y en el cierre -- `ADMIN_API_KEY`, `RATE_LIMIT_POR_MINUTO`,
+ultima importacion correcta, incidencias criticas revisadas),
+`docs/PLAN_BACKUP.md` (cubre los dos escenarios posibles de la base real de
+DigitalOcean -- Managed Database con backup automatico, o Postgres sin
+backup administrado con rutina de `pg_dump` manual -- **pendiente confirmar
+con Sebad cual de los dos aplica**), y `docs/GUIA_OPERACION_VOTACION.md`
+(paso a paso: importar padron, crear votacion y opciones, abrir, monitorear,
+cerrar, revelar resultados, con el llamado HTTP y el paso equivalente en el
+panel para cada uno).
+
+Pendiente para cerrar esta mision:
+
+- **Validacion contra PostgreSQL real**: corrida completa (migraciones,
+  importar padron, abrir votacion, votar casos de prueba, cerrar, revelar,
+  resultados) contra la base v18 real de DigitalOcean. Necesita el
+  `DATABASE_URL` real, que Sebad va a pasar mas adelante -- por ahora, todo
+  lo de esta mision corrio solo contra SQLite (igual que el resto de la
+  suite de pruebas desde la Mision 03).
+- **Pasada manual con navegador real sobre `frontend-admin`**: pendiente
+  desde el cierre de la Mision 10. Para esta mision se levanto el backend
+  real (SQLite local con el padron real ya importado, sin ninguna votacion
+  creada todavia) mas `frontend-admin` en `npm run dev`, y Sebad la esta
+  probando el mismo a mano desde el navegador (login, dashboard, incidencias,
+  importaciones, crear/abrir/cerrar votacion, resultados) -- no hay
+  herramienta de navegador/Playwright conectada en esta sesion para hacerlo
+  de forma automatizada.
 
 Entregables:
 
@@ -333,15 +429,24 @@ Entregables:
 
 Criterios de aceptacion:
 
-- Los casos de matrimonio consagrado, bloque no consagrado y grupo mixto funcionan.
-- Los intentos de doble voto quedan bloqueados.
-- Los resultados no se revelan antes del cierre.
-- Existe una guia clara para operar el dia de la votacion.
+- Cumplido: los casos de matrimonio consagrado, bloque no consagrado y
+  grupo mixto funcionan (`test_mision11_casos_criticos.py`).
+- Cumplido: los intentos de doble voto quedan bloqueados (mismo archivo, y
+  ya cubierto desde la Mision 06).
+- Cumplido: los resultados no se revelan antes del cierre (ya cubierto
+  desde la Mision 08, DEC-022; sin cambios en esta mision).
+- Cumplido: existe una guia clara para operar durante todo el periodo de
+  votacion, no solo "el dia" (`docs/GUIA_OPERACION_VOTACION.md`).
+- Pendiente: el ciclo completo corriendo sin diferencias contra PostgreSQL
+  real, y la confirmacion de Sebad sobre la pasada manual de
+  `frontend-admin` -- ver "Pendiente para cerrar esta mision" arriba.
 
 ## Proxima Mision Recomendada
 
-Con la Mision 10 completada, tanto el frontend de votacion (Mision 09) como el panel administrativo (`frontend-admin/`) consumen la API real. Queda una sola mision:
-
-- Mision 11 - Prueba General Y Preparacion Operativa: validacion end-to-end antes de una votacion real, incluida la verificacion manual con navegador real (Playwright) del panel administrativo que la Mision 10 no llego a hacer.
+No queda ninguna mision nueva planificada: la Mision 11 es la ultima de
+`BACKLOG_INICIAL.md`. Lo que resta no es una mision nueva, sino cerrar los
+dos pendientes explicitos de la Mision 11 (validacion contra PostgreSQL real
+y confirmacion de la pasada manual de `frontend-admin`, ver arriba) antes de
+operar una votacion real.
 
 El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ni la Mision 09 ni la Mision 10 le agregaron ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real (Mision 11).

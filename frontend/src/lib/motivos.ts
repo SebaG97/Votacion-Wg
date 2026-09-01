@@ -13,7 +13,7 @@ export function traducirMotivoNoDisponible(motivo: string | null): string {
       return "Esta unidad ya emitió su voto.";
     case "PENDIENTE_DEFINICION_POSTULANTES":
     case "PENDIENTE_DEFINICION_BAJA":
-      return "Todavía no está habilitada para votar.";
+      return "Esta unidad no tiene voto habilitado en esta elección.";
     default:
       return "No está disponible para votar en este momento.";
   }

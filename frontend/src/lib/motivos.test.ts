@@ -15,10 +15,10 @@ describe("traducirMotivoNoDisponible", () => {
 
   it("traduce PENDIENTE_DEFINICION_POSTULANTES y PENDIENTE_DEFINICION_BAJA al mismo mensaje", () => {
     expect(traducirMotivoNoDisponible("PENDIENTE_DEFINICION_POSTULANTES")).toBe(
-      "Todavía no está habilitada para votar.",
+      "Esta unidad no tiene voto habilitado en esta elección.",
     );
     expect(traducirMotivoNoDisponible("PENDIENTE_DEFINICION_BAJA")).toBe(
-      "Todavía no está habilitada para votar.",
+      "Esta unidad no tiene voto habilitado en esta elección.",
     );
   });
 

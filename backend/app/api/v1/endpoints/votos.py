@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import RATE_LIMIT_OPERATIVO, limiter
 from app.db.session import get_db
 from app.schemas.voto import VotoRequest, VotoResponse
 from app.services.voto import (
@@ -22,8 +23,9 @@ router = APIRouter()
     response_model=VotoResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(RATE_LIMIT_OPERATIVO)
 def crear_voto(
-    votacion_id: int, body: VotoRequest, db: Session = Depends(get_db)
+    request: Request, votacion_id: int, body: VotoRequest, db: Session = Depends(get_db)
 ) -> VotoResponse:
     try:
         voto = registrar_voto(
