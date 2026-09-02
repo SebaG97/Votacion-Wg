@@ -149,6 +149,25 @@ a {
   box-shadow: var(--shadow-sm);
 }
 
+.site-footer {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+}
+
+.site-footer a {
+  color: var(--color-neutral-400);
+  font-size: 0.8rem;
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.site-footer a:hover {
+  color: var(--color-primary-600);
+  text-decoration: underline;
+}
+
 .mode {
   color: var(--color-neutral-400);
   font-size: 0.86rem;

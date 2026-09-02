@@ -8,6 +8,7 @@ import { DashboardPage } from "./routes/DashboardPage";
 import { ImportacionesPage } from "./routes/ImportacionesPage";
 import { IncidenciasPage } from "./routes/IncidenciasPage";
 import { LoginPage } from "./routes/LoginPage";
+import { PadronPage } from "./routes/PadronPage";
 import { VotacionDetailPage } from "./routes/VotacionDetailPage";
 
 export function App() {
@@ -54,6 +55,14 @@ export function App() {
               element={
                 <RequireAuth>
                   <ImportacionesPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/padron"
+              element={
+                <RequireAuth>
+                  <PadronPage />
                 </RequireAuth>
               }
             />

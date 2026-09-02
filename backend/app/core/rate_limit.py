@@ -37,3 +37,11 @@ def get_client_ip(request: Request) -> str:
 limiter = Limiter(key_func=get_client_ip)
 
 RATE_LIMIT_OPERATIVO = f"{settings.rate_limit_por_minuto}/minute"
+
+# Mision 12 (DEC-030): POST /auth/login reemplaza el token crudo pegado en el
+# login por un usuario/contrasena fijos (ADMIN_USERNAME/ADMIN_PASSWORD). Una
+# contrasena fija y corta es adivinable por fuerza bruta si no se limita el
+# ritmo de intentos; un limite bajo y fijo (no configurable via env, a
+# diferencia de RATE_LIMIT_OPERATIVO) alcanza porque este endpoint no lo usa
+# un votante real de forma repetida, solo quien administra el panel.
+RATE_LIMIT_LOGIN = "5/minute"

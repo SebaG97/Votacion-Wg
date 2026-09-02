@@ -470,12 +470,42 @@ Criterios de aceptacion:
 - Pendiente: la confirmacion de Sebad sobre la pasada manual de
   `frontend-admin` -- ver "Pendiente para cerrar esta mision" arriba.
 
+## Mision 12 - Login De Usuario/Contraseña Y Visor De Padron En El Panel Administrativo
+
+Estado: completada (2026-09-02)
+
+Objetivo: reemplazar el login del panel administrativo (pegar el `ADMIN_API_KEY` crudo) por un usuario/contraseña convencional que Sebad pueda entregarle a quien administre el panel sin exponer el token tecnico, y agregar un visor del padron (personas, matrimonios, grupos, unidades electorales) navegable en tabla y filtrable, para consultar esos datos el dia de la votacion si hace falta.
+
+Login usuario/contraseña (DEC-030): `POST /api/v1/auth/login` valida `{usuario, contrasena}` contra dos variables de entorno nuevas y fijas, `ADMIN_USERNAME`/`ADMIN_PASSWORD` (un unico par de credenciales, no una tabla de usuarios). Si esas variables o `ADMIN_API_KEY` no estan configuradas, falla cerrado con `403` -- mismo criterio que `require_admin` (DEC-021). Con credenciales correctas devuelve el mismo `ADMIN_API_KEY` que `require_admin` ya exige como header `X-Admin-Token`: el login nuevo es una puerta de entrada delante de esa proteccion, no un reemplazo -- ningun endpoint administrativo existente cambio. Reusa `slowapi` (Mision 11, DEC-029) con un limite nuevo y fijo, `RATE_LIMIT_LOGIN = "5/minute"`, porque la contraseña ahora es corta y el panel esta expuesto en internet. `frontend-admin/src/routes/LoginPage.tsx` cambia el campo unico de token por dos campos (usuario/contraseña) y llama a este endpoint en vez de pegar el token de forma optimista.
+
+Visor de padron filtrable (DEC-031): `GET /api/v1/padron/personas` (protegido por `require_admin`, servicio nuevo `listar_padron` en `app/services/padron/administracion.py`) lista personas con su circulo, matrimonio y unidades electorales, filtrable por circulo, grupo, estado de persona, estado/tipo de unidad electoral, nombre, documento y celular (combinables), y paginado (mas de mil personas). Deliberadamente **no** incluye ni permite cruzar `Voto`: el sistema ya registra trazabilidad de quien voto a nivel de auditoria (DEC-020), pero los resultados publicos evitan a proposito cruzar circulo por opcion para no revelar el voto individual de unidades con un solo integrante (DEC-022); un visor de padron que mostrara eso reabriria el mismo problema por una puerta lateral. `frontend-admin/src/routes/PadronPage.tsx` sigue el patron de `IncidenciasPage.tsx` (Mision 10): filtros + tabla + un banner que aclara la exclusion, mas paginacion nueva (50 filas por pagina).
+
+Testing: `backend/tests/test_auth_endpoint.py` (nuevo, 5 pruebas) y un bloque nuevo en `backend/tests/test_padron_administracion_endpoint.py` (10 pruebas: listado completo, cada filtro por separado, una combinacion, paginacion y `require_admin`). `frontend-admin/src/test/login.test.tsx` (nuevo, 4 pruebas) y `frontend-admin/src/test/padron.test.tsx` (nuevo, 4 pruebas). **141 pruebas de backend en verde** (126 previas + 5 + 10) y **32 pruebas de `frontend-admin` en verde** (24 previas + 8 nuevas). `tsc --noEmit` y `vite build` sin errores.
+
+Documentacion: `docs/DECISIONES.md` gana DEC-030 (login usuario/contraseña) y DEC-031 (exclusion de `Voto` del visor de padron). `backend/.env.example` documenta `ADMIN_USERNAME`/`ADMIN_PASSWORD`.
+
+Pendiente: pasada manual con navegador real sobre el login y el visor de padron nuevos -- no hay herramienta de navegador/Playwright conectada en esta sesion, mismo pendiente que ya quedo abierto en la Mision 11 para el resto de `frontend-admin`.
+
+Entregables:
+
+- `POST /api/v1/auth/login`, `GET /api/v1/padron/personas`.
+- `frontend-admin/src/routes/LoginPage.tsx` (reescrito), `frontend-admin/src/routes/PadronPage.tsx` (nuevo).
+- `docs/DECISIONES.md` (DEC-030, DEC-031), `backend/.env.example` actualizado.
+
+Criterios de aceptacion:
+
+- Cumplido: el login pide usuario/contraseña, no el token crudo, y sigue guardando/mandando el mismo token que antes.
+- Cumplido: el login falla cerrado sin las variables de entorno, rechaza credenciales incorrectas y limita los intentos por IP.
+- Cumplido: el visor de padron filtra por circulo, estado de unidad, nombre/documento y celular, con paginacion, y no incluye ningun dato de `Voto`.
+- Pendiente: confirmacion de Sebad sobre la pasada manual con navegador real (ver arriba).
+
 ## Proxima Mision Recomendada
 
-No queda ninguna mision nueva planificada: la Mision 11 es la ultima de
-`BACKLOG_INICIAL.md`. Lo que resta no es una mision nueva, sino cerrar los
-dos pendientes explicitos de la Mision 11 (validacion contra PostgreSQL real
-y confirmacion de la pasada manual de `frontend-admin`, ver arriba) antes de
-operar una votacion real.
+No queda ninguna mision nueva planificada: la Mision 11 era la ultima de
+`BACKLOG_INICIAL.md`, y la Mision 12 fue un pedido puntual de Sebad sobre el
+panel administrativo. Lo que resta no es una mision nueva, sino cerrar los
+pendientes explicitos que quedaron abiertos: la confirmacion de Sebad sobre
+la pasada manual de `frontend-admin` (Mision 11, extendida ahora al login y
+al visor de padron nuevos de la Mision 12) antes de operar una votacion real.
 
-El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ni la Mision 09 ni la Mision 10 le agregaron ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real (Mision 11).
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ninguna mision hasta la 12 le agrego ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real.

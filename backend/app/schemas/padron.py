@@ -2,7 +2,13 @@ import datetime as dt
 
 from pydantic import BaseModel
 
-from app.models.enums import EstadoImportacion, SeveridadIncidencia, TipoIncidenciaPadron
+from app.models.enums import (
+    EstadoImportacion,
+    EstadoPersona,
+    SeveridadIncidencia,
+    TipoIncidenciaPadron,
+    TipoUnidadElectoral,
+)
 
 
 class ImportacionPadronRequest(BaseModel):
@@ -47,3 +53,40 @@ class ResolverIncidenciaRequest(BaseModel):
     propio nombre, sin relacion con una identidad autenticada (DEC-021)."""
 
     usuario: str
+
+
+class PadronUnidadElectoralResponse(BaseModel):
+    id: int
+    tipo: TipoUnidadElectoral
+    estado: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class PadronPersonaResponse(BaseModel):
+    """Fila de `GET /padron/personas` (Mision 12, DEC-031): datos de padron
+    (persona, circulo, matrimonio, unidades electorales) sin ningun dato de
+    `Voto`."""
+
+    id: int
+    nombres: str
+    apellidos: str
+    documento: str | None
+    celular: str | None
+    estado: EstadoPersona
+    grupo_id: int | None
+    circulo: str | None
+    es_jefe_grupo: bool
+    matrimonio_id: int | None
+    matrimonio_estado: str | None
+    es_consagrado: bool | None
+    unidades_electorales: list[PadronUnidadElectoralResponse]
+
+    model_config = {"from_attributes": True}
+
+
+class PadronListadoResponse(BaseModel):
+    total: int
+    pagina: int
+    tamanio_pagina: int
+    items: list[PadronPersonaResponse]

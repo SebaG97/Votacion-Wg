@@ -1,6 +1,7 @@
 """Pruebas de los endpoints administrativos de padron agregados en la
 Mision 10 (DEC-025): historial de importaciones, listado filtrable de
-incidencias y marcarlas como revisadas."""
+incidencias y marcarlas como revisadas. Mision 12 (DEC-031) agrega el visor
+de padron filtrable y paginado (`GET /padron/personas`)."""
 
 from __future__ import annotations
 
@@ -200,5 +201,230 @@ def test_get_incidencias_sin_token_da_401_o_403(migrated_db_url, monkeypatch):
 
         monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
         assert client.get("/api/v1/padron/incidencias").status_code == 401
+    finally:
+        _liberar(engine)
+
+
+# --- GET /padron/personas (Mision 12, DEC-031): visor de padron filtrable y
+# paginado. El fixture de `_construir_excel_fixture` (test_importador_padron.py)
+# tiene 8 personas conocidas: Pereira Juan / Fernandez Maria (CIRCULO A,
+# comparten celular "0981-111-111" -> "0981111111", CI de Juan "1234567"),
+# Gonzalez Pedro (CIRCULO B), Diaz Roberto / Diaz Insfran Sonia (CIRCULO D),
+# Benitez Marcos / Benitez Rojas Laura (CIRCULO E), Lopez Ana (POSTULANTES B).
+
+
+def test_get_padron_personas_lista_todas_con_paginacion_por_defecto(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get("/api/v1/padron/personas", headers=_headers())
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 8
+        assert body["pagina"] == 1
+        assert body["tamanio_pagina"] == 50
+        assert len(body["items"]) == 8
+        # Deliberadamente sin ningun dato de voto (DEC-031).
+        assert "voto" not in str(body).lower()
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_circulo(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas", params={"circulo": "CIRCULO A"}, headers=_headers()
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 2
+        assert {item["apellidos"] for item in body["items"]} == {"Pereira", "Fernandez"}
+        assert all(item["circulo"] == "CIRCULO A" for item in body["items"])
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_nombre(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas", params={"nombre": "pereira"}, headers=_headers()
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        assert body["items"][0]["nombres"] == "Juan"
+        assert body["items"][0]["apellidos"] == "Pereira"
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_documento(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas", params={"documento": "1234567"}, headers=_headers()
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        assert body["items"][0]["documento"] == "1234567"
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_celular(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas", params={"celular": "0981111111"}, headers=_headers()
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        # Pereira Juan y Fernandez Maria comparten el mismo celular (DEC-008).
+        assert body["total"] == 2
+        assert all(item["celular"] == "0981111111" for item in body["items"])
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_estado_persona(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas", params={"estado_persona": "ACTIVA"}, headers=_headers()
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        # Ninguna persona de este fixture tiene marca de baja.
+        assert body["total"] == 8
+        assert all(item["estado"] == "ACTIVA" for item in body["items"])
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_filtra_por_estado_y_tipo_de_unidad_electoral(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        todos = client.get("/api/v1/padron/personas", headers=_headers()).json()["items"]
+        alguna_unidad = next(
+            u for item in todos for u in item["unidades_electorales"] if u["estado"]
+        )
+
+        response = client.get(
+            "/api/v1/padron/personas",
+            params={
+                "estado_unidad_electoral": alguna_unidad["estado"],
+                "tipo_unidad_electoral": alguna_unidad["tipo"],
+            },
+            headers=_headers(),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] >= 1
+        for item in body["items"]:
+            assert any(
+                u["estado"] == alguna_unidad["estado"] and u["tipo"] == alguna_unidad["tipo"]
+                for u in item["unidades_electorales"]
+            )
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_combina_filtros(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        response = client.get(
+            "/api/v1/padron/personas",
+            params={"circulo": "CIRCULO A", "estado_persona": "ACTIVA"},
+            headers=_headers(),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 2
+
+        sin_match = client.get(
+            "/api/v1/padron/personas",
+            params={"circulo": "CIRCULO A", "documento": "no-existe"},
+            headers=_headers(),
+        )
+        assert sin_match.status_code == 200
+        assert sin_match.json()["total"] == 0
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_pagina(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+
+        pagina1 = client.get(
+            "/api/v1/padron/personas",
+            params={"tamanio_pagina": 3, "pagina": 1},
+            headers=_headers(),
+        ).json()
+        pagina3 = client.get(
+            "/api/v1/padron/personas",
+            params={"tamanio_pagina": 3, "pagina": 3},
+            headers=_headers(),
+        ).json()
+
+        assert pagina1["total"] == 8
+        assert len(pagina1["items"]) == 3
+        assert len(pagina3["items"]) == 2  # 8 = 3 + 3 + 2
+
+        ids_pagina1 = {item["id"] for item in pagina1["items"]}
+        ids_pagina3 = {item["id"] for item in pagina3["items"]}
+        assert ids_pagina1.isdisjoint(ids_pagina3)
+    finally:
+        _liberar(engine)
+
+
+def test_get_padron_personas_sin_token_da_401_o_403(migrated_db_url, monkeypatch):
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        monkeypatch.setattr(settings, "admin_api_key", "")
+        assert client.get("/api/v1/padron/personas").status_code == 403
+
+        monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+        assert client.get("/api/v1/padron/personas").status_code == 401
     finally:
         _liberar(engine)

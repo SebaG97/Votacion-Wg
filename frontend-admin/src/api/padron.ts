@@ -1,5 +1,15 @@
 import { apiGet, apiPost } from "./client";
 
+export type EstadoPersona = "ACTIVA" | "BAJA_NO_ML" | "BAJA_OBSERVACION";
+
+export type TipoUnidadElectoral = "MATRIMONIO_CONSAGRADO" | "BLOQUE_NO_CONSAGRADO";
+
+export type EstadoUnidadElectoral =
+  | "HABILITADA"
+  | "BLOQUEADA_POR_INCIDENCIA"
+  | "PENDIENTE_DEFINICION_POSTULANTES"
+  | "PENDIENTE_DEFINICION_BAJA";
+
 export type EstadoImportacion = "EN_PROCESO" | "COMPLETADA" | "FALLIDA";
 
 export type ImportacionPadron = {
@@ -77,4 +87,78 @@ export function resolverIncidencia(
     `/padron/incidencias/${incidenciaId}/resolver`,
     { usuario },
   );
+}
+
+export type PadronUnidadElectoral = {
+  id: number;
+  tipo: TipoUnidadElectoral;
+  estado: string | null;
+};
+
+/**
+ * Fila de `GET /padron/personas` (Mision 12, DEC-031): datos de padron
+ * (persona, circulo, matrimonio, unidades electorales). Deliberadamente sin
+ * ningun dato de `Voto` -- este visor es para consultar quien es quien y su
+ * habilitacion, no para ver ni cruzar que voto cada unidad (DEC-020).
+ */
+export type PadronPersona = {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  documento: string | null;
+  celular: string | null;
+  estado: EstadoPersona;
+  grupo_id: number | null;
+  circulo: string | null;
+  es_jefe_grupo: boolean;
+  matrimonio_id: number | null;
+  matrimonio_estado: string | null;
+  es_consagrado: boolean | null;
+  unidades_electorales: PadronUnidadElectoral[];
+};
+
+export type PadronListado = {
+  total: number;
+  pagina: number;
+  tamanio_pagina: number;
+  items: PadronPersona[];
+};
+
+export type FiltrosPadron = {
+  circulo?: string;
+  grupo_id?: number;
+  estado_persona?: EstadoPersona;
+  estado_unidad_electoral?: EstadoUnidadElectoral;
+  tipo_unidad_electoral?: TipoUnidadElectoral;
+  nombre?: string;
+  documento?: string;
+  celular?: string;
+  pagina?: number;
+  tamanio_pagina?: number;
+};
+
+function construirQueryPadron(filtros: FiltrosPadron): string {
+  const params = new URLSearchParams();
+  if (filtros.circulo) params.set("circulo", filtros.circulo);
+  if (filtros.grupo_id !== undefined) params.set("grupo_id", String(filtros.grupo_id));
+  if (filtros.estado_persona) params.set("estado_persona", filtros.estado_persona);
+  if (filtros.estado_unidad_electoral) {
+    params.set("estado_unidad_electoral", filtros.estado_unidad_electoral);
+  }
+  if (filtros.tipo_unidad_electoral) {
+    params.set("tipo_unidad_electoral", filtros.tipo_unidad_electoral);
+  }
+  if (filtros.nombre) params.set("nombre", filtros.nombre);
+  if (filtros.documento) params.set("documento", filtros.documento);
+  if (filtros.celular) params.set("celular", filtros.celular);
+  if (filtros.pagina !== undefined) params.set("pagina", String(filtros.pagina));
+  if (filtros.tamanio_pagina !== undefined) {
+    params.set("tamanio_pagina", String(filtros.tamanio_pagina));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export function listarPadron(filtros: FiltrosPadron = {}): Promise<PadronListado> {
+  return apiGet<PadronListado>(`/padron/personas${construirQueryPadron(filtros)}`);
 }

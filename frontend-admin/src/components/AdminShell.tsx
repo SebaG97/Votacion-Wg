@@ -25,6 +25,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <NavLink to="/incidencias" className={({ isActive }) => (isActive ? "activo" : "")}>
             Incidencias
           </NavLink>
+          <NavLink to="/padron" className={({ isActive }) => (isActive ? "activo" : "")}>
+            Padrón
+          </NavLink>
           <NavLink to="/importaciones" className={({ isActive }) => (isActive ? "activo" : "")}>
             Importaciones
           </NavLink>
