@@ -12,7 +12,13 @@ def _build_engine(database_url: str) -> Engine:
     if database_url.startswith("sqlite"):
         connect_args = {"check_same_thread": False}
 
-    engine = create_engine(database_url, connect_args=connect_args, future=True)
+    engine = create_engine(
+        database_url,
+        connect_args=connect_args,
+        future=True,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+    )
 
     if database_url.startswith("sqlite"):
         @event.listens_for(engine, "connect")

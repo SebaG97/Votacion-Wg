@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./client";
+import { apiGet, apiPatch, apiPost } from "./client";
 
 export type EstadoPersona = "ACTIVA" | "BAJA_NO_ML" | "BAJA_OBSERVACION";
 
@@ -161,4 +161,53 @@ function construirQueryPadron(filtros: FiltrosPadron): string {
 
 export function listarPadron(filtros: FiltrosPadron = {}): Promise<PadronListado> {
   return apiGet<PadronListado>(`/padron/personas${construirQueryPadron(filtros)}`);
+}
+
+/**
+ * Edicion de contacto del padron (Mision 13, DEC-034): `nombres`, `apellidos`,
+ * `documento`, `celular`. Los 4 campos se mandan siempre (reemplazo completo,
+ * no PATCH parcial); `celular`/`documento` en `""` significa "sin dato".
+ * Deliberadamente sin `estado` ni consagracion del matrimonio -- quedan de
+ * solo lectura (recalcularlos implica crear/tocar unidades electorales).
+ */
+export type PersonaUpdateRequest = {
+  nombres: string;
+  apellidos: string;
+  documento?: string | null;
+  celular?: string | null;
+  usuario: string;
+  confirmar_duplicado_celular?: boolean;
+};
+
+export type PersonaEdicion = {
+  id: number;
+  persona_id: number;
+  campo: "nombres" | "apellidos" | "documento" | "celular";
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  usuario: string;
+  fecha: string;
+};
+
+export type PersonaUpdateResponse = {
+  persona: PadronPersona;
+  ediciones: PersonaEdicion[];
+};
+
+/**
+ * `PATCH /padron/personas/{id}`. El celular se normaliza en el backend con
+ * la misma logica del importador. Un celular duplicado con una persona de un
+ * matrimonio distinto no bloquea, pero el backend responde `409` con el
+ * detalle de la otra persona hasta que se reenvia con
+ * `confirmar_duplicado_celular: true` -- el aviso "antes de confirmar" que
+ * pide la mision.
+ */
+export function actualizarPersona(
+  id: number,
+  body: PersonaUpdateRequest,
+): Promise<PersonaUpdateResponse> {
+  return apiPatch<PersonaUpdateResponse, PersonaUpdateRequest>(
+    `/padron/personas/${id}`,
+    body,
+  );
 }

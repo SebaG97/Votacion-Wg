@@ -7,6 +7,7 @@ from app.models.incidencia_padron import IncidenciaPadron
 from app.models.matrimonio import Matrimonio
 from app.models.opcion_voto import OpcionVoto
 from app.models.persona import Persona
+from app.models.persona_edicion import PersonaEdicion
 from app.models.unidad_electoral import UnidadElectoral
 from app.models.votacion import Votacion
 from app.models.voto import Voto
@@ -19,6 +20,7 @@ __all__ = [
     "Matrimonio",
     "OpcionVoto",
     "Persona",
+    "PersonaEdicion",
     "UnidadElectoral",
     "Votacion",
     "Voto",

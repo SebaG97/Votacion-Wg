@@ -80,6 +80,16 @@ describe("los resultados finales solo se consultan con la votacion CERRADA o RES
       expect(votacionesApi.obtenerResultados).not.toHaveBeenCalled();
       expect(votacionesApi.revelarResultados).not.toHaveBeenCalled();
       expect(screen.queryByText("Resultados finales")).not.toBeInTheDocument();
+
+      // Mision 13, DEC-035: el tablero en vivo solo grafica los agregados
+      // que el stat-grid ya mostraba (unidades por estado, votos vs
+      // pendientes) -- nunca nada desglosado por opcion, que vive
+      // exclusivamente dentro de ResultadosView.
+      expect(screen.getByTestId("chart-unidades-por-estado")).toBeInTheDocument();
+      expect(screen.getByTestId("chart-votos-vs-pendientes")).toBeInTheDocument();
+      expect(screen.queryByTestId("chart-por-opcion")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("chart-por-tipo-unidad")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("chart-por-circulo")).not.toBeInTheDocument();
     },
   );
 
@@ -99,6 +109,9 @@ describe("los resultados finales solo se consultan con la votacion CERRADA o RES
 
     await waitFor(() => expect(votacionesApi.obtenerResultados).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Resultados finales")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-por-opcion")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-por-tipo-unidad")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-por-circulo")).toBeInTheDocument();
   });
 
   it("con estado RESULTADOS_REVELADOS si llama a obtenerResultados y no ofrece revelar de nuevo", async () => {

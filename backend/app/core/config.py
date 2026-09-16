@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     )
     secret_key: str = Field(default="change-me", alias="SECRET_KEY")
     cors_origins: str = Field(
-        default="http://localhost:5173,http://localhost:5174", alias="CORS_ORIGINS"
+        default="http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177",
+        alias="CORS_ORIGINS",
     )
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
     admin_username: str = Field(default="", alias="ADMIN_USERNAME")

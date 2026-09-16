@@ -499,13 +499,46 @@ Criterios de aceptacion:
 - Cumplido: el visor de padron filtra por circulo, estado de unidad, nombre/documento y celular, con paginacion, y no incluye ningun dato de `Voto`.
 - Pendiente: confirmacion de Sebad sobre la pasada manual con navegador real (ver arriba).
 
+## Mision 13 - Graficos En Resultados/Tablero En Vivo Y Edicion De Datos De Contacto Del Padron
+
+Estado: completada (2026-09-16)
+
+Objetivo: visualizar con graficos los numeros que hasta ahora solo se veian en tablas -- tanto en el tablero en vivo de una votacion ABIERTA como en la vista de resultados finales -- y permitir editar desde el panel los datos de contacto (nombres, apellidos, documento, celular) de una persona del padron, para ir completando de a poco los datos que faltan (`docs/PADRON_ANALISIS.md`, seccion 5) sin depender de reimportar el Excel completo.
+
+Edicion de contacto del padron (DEC-034): `PATCH /api/v1/padron/personas/{id}` (protegido por `require_admin`), limitado a `nombres`/`apellidos`/`documento`/`celular` -- deliberadamente sin `estado` de la persona ni consagracion del matrimonio, que quedan de solo lectura porque tocarlos implicaria recalcular/crear unidades electorales (fuera de alcance). El celular se normaliza con la misma funcion que usa el importador desde la Mision 02 (`normalizar_celular`, DEC-005). Un celular duplicado con una persona de un matrimonio distinto no bloquea (DEC-002/DEC-008), pero exige confirmacion explicita: el endpoint responde `409` con el detalle de la otra persona y hay que reenviar con `confirmar_duplicado_celular: true`. Cada edicion queda registrada campo por campo en la tabla nueva `ediciones_persona` (quien, cuando, valor anterior/nuevo) -- a diferencia del patron `*_por`/`*_at` de un solo actor usado hasta ahora en el resto del proyecto. `frontend-admin/src/routes/PadronPage.tsx` gana una columna "Editar" que despliega un formulario inline (`components/PersonaEditForm.tsx`, sin modal -- no existe ese patron en el codebase), con `estado`/consagracion mostrados como texto de solo lectura.
+
+Graficos en resultados y tablero en vivo (DEC-035): se agrega un componente propio de barras en HTML/CSS (`frontend-admin/src/components/charts/BarChart.tsx`) en vez de sumar una libreria de graficos -- 5 usos en todo el panel, sin necesidad de interactividad mas alla de un tooltip nativo por barra. Los 3 graficos de `ResultadosView.tsx` (votos por opcion, participacion por tipo de unidad electoral, participacion por circulo) se agregan junto a las tablas existentes, con los mismos datos, sin ningun cruce nuevo; como ese componente solo se monta con `estado` CERRADA/RESULTADOS_REVELADOS, heredan automaticamente la garantia de DEC-022. Los 2 graficos de `VotacionDetailPage.tsx` viven dentro del `stat-grid` de "Estado operativo" (unidades por estado, votos emitidos vs. pendientes) -- los mismos agregados que ya se mostraban ahi, visibles en cualquier estado incluida ABIERTA, nunca nada desglosado por opcion.
+
+Testing: 8 pruebas nuevas en `backend/tests/test_padron_administracion_endpoint.py` (edicion completa con auditoria, edicion de un solo campo, celular invalido, nombres vacios, duplicado entre matrimonios distintos con y sin confirmacion, duplicado con el conyuge sin aviso, persona inexistente, `require_admin`). `frontend-admin/src/test/padron-edicion.test.tsx` (nuevo, 4 pruebas), `frontend-admin/src/test/resultados-charts.test.tsx` (nuevo, 1 prueba) y aserciones nuevas dentro de las pruebas ya existentes de `frontend-admin/src/test/no-resultados-prematuros.test.tsx` que verifican, para los 4 estados de votacion, que el tablero en vivo nunca renderiza nada desglosado por opcion. **149 pruebas de backend en verde** (141 previas + 8) y **37 pruebas de `frontend-admin` en verde** (32 previas + 5). `tsc --noEmit` y `vite build` sin errores.
+
+Documentacion: `docs/DECISIONES.md` gana DEC-034 (edicion de contacto del padron) y DEC-035 (graficos en resultados y tablero en vivo).
+
+Pendiente: pasada manual con navegador real sobre el formulario de edicion y los graficos nuevos -- no hay herramienta de navegador/Playwright conectada en esta sesion, mismo pendiente que ya quedo abierto en las Misiones 11 y 12 para el resto de `frontend-admin`.
+
+Entregables:
+
+- `PATCH /api/v1/padron/personas/{id}`.
+- `frontend-admin/src/components/PersonaEditForm.tsx` (nuevo), `frontend-admin/src/components/charts/BarChart.tsx` (nuevo).
+- `frontend-admin/src/components/ResultadosView.tsx` y `frontend-admin/src/routes/VotacionDetailPage.tsx` (graficos agregados), `frontend-admin/src/routes/PadronPage.tsx` (edicion agregada).
+- `docs/DECISIONES.md` (DEC-034, DEC-035).
+
+Criterios de aceptacion:
+
+- Cumplido: se puede editar nombres/apellidos/documento/celular de una persona del padron desde el panel, sin tocar estado ni consagracion.
+- Cumplido: el celular se normaliza igual que en el importador; un duplicado entre matrimonios distintos avisa antes de confirmar, sin bloquear.
+- Cumplido: cada edicion queda registrada con quien, cuando y que cambio (valor anterior/nuevo).
+- Cumplido: hay graficos junto a las tablas de resultados finales y del tablero en vivo, con la misma informacion ya mostrada.
+- Cumplido: el tablero en vivo (ABIERTA) nunca muestra ni un grafico ni un dato desglosado por opcion -- verificado en tiempo de ejecucion para los 4 estados de votacion.
+- Pendiente: confirmacion de Sebad sobre la pasada manual con navegador real (ver arriba).
+
 ## Proxima Mision Recomendada
 
 No queda ninguna mision nueva planificada: la Mision 11 era la ultima de
-`BACKLOG_INICIAL.md`, y la Mision 12 fue un pedido puntual de Sebad sobre el
-panel administrativo. Lo que resta no es una mision nueva, sino cerrar los
-pendientes explicitos que quedaron abiertos: la confirmacion de Sebad sobre
-la pasada manual de `frontend-admin` (Mision 11, extendida ahora al login y
-al visor de padron nuevos de la Mision 12) antes de operar una votacion real.
+`BACKLOG_INICIAL.md`, y las Misiones 12 y 13 fueron pedidos puntuales de
+Sebad sobre el panel administrativo. Lo que resta no es una mision nueva,
+sino cerrar los pendientes explicitos que quedaron abiertos: la confirmacion
+de Sebad sobre la pasada manual de `frontend-admin` (Mision 11, extendida
+ahora al login y al visor de padron de la Mision 12, y al formulario de
+edicion y los graficos de la Mision 13) antes de operar una votacion real.
 
-El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ninguna mision hasta la 12 le agrego ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real.
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ninguna mision hasta la 13 le agrego ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real.

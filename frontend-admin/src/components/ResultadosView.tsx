@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { obtenerResultados, revelarResultados, type VotacionResultados } from "../api/votaciones";
 import { mensajeDeError } from "../lib/errores";
 import { traducirErrorVotacion } from "../lib/erroresVotacion";
+import { BarChart } from "./charts/BarChart";
 
 type ResultadosViewProps = {
   votacionId: number;
@@ -127,6 +128,18 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
               </tbody>
             </table>
           </div>
+          <div className="chart-wrap">
+            <BarChart
+              testId="chart-por-opcion"
+              ariaLabel="Votos por opción"
+              data={resultados.totales_por_opcion.map((o) => ({
+                key: o.opcion_id,
+                label: o.nombre,
+                value: o.votos,
+                displayValue: `${o.votos} (${o.porcentaje.toFixed(1)}%)`,
+              }))}
+            />
+          </div>
 
           <h2>Por tipo de unidad electoral</h2>
           <div className="table-wrap">
@@ -151,6 +164,19 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
               </tbody>
             </table>
           </div>
+          <div className="chart-wrap">
+            <BarChart
+              testId="chart-por-tipo-unidad"
+              ariaLabel="Participación por tipo de unidad electoral"
+              maxValue={1}
+              data={resultados.totales_por_tipo_unidad.map((t) => ({
+                key: t.tipo,
+                label: t.tipo,
+                value: t.participacion ?? 0,
+                displayValue: t.participacion === null ? "—" : `${(t.participacion * 100).toFixed(1)}%`,
+              }))}
+            />
+          </div>
 
           <h2>Por círculo</h2>
           <div className="table-wrap">
@@ -174,6 +200,19 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="chart-wrap">
+            <BarChart
+              testId="chart-por-circulo"
+              ariaLabel="Participación por círculo"
+              maxValue={1}
+              data={resultados.totales_por_grupo.map((g) => ({
+                key: g.grupo_id,
+                label: g.nombre,
+                value: g.participacion ?? 0,
+                displayValue: g.participacion === null ? "—" : `${(g.participacion * 100).toFixed(1)}%`,
+              }))}
+            />
           </div>
         </>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import {
@@ -7,8 +7,10 @@ import {
   type EstadoUnidadElectoral,
   type FiltrosPadron,
   type PadronPersona,
+  type PersonaUpdateResponse,
   type TipoUnidadElectoral,
 } from "../api/padron";
+import { PersonaEditForm } from "../components/PersonaEditForm";
 import { mensajeDeError } from "../lib/errores";
 
 const ESTADOS_PERSONA: EstadoPersona[] = ["ACTIVA", "BAJA_NO_ML", "BAJA_OBSERVACION"];
@@ -38,6 +40,8 @@ export function PadronPage() {
   const [listado, setListado] = useState<{ total: number; items: PadronPersona[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [ultimaEdicion, setUltimaEdicion] = useState<PersonaUpdateResponse | null>(null);
 
   const [circulo, setCirculo] = useState("");
   const [nombre, setNombre] = useState("");
@@ -76,6 +80,12 @@ export function PadronPage() {
       setPagina(1);
       setter(valor);
     };
+  }
+
+  function handlePersonaGuardada(respuesta: PersonaUpdateResponse) {
+    setEditandoId(null);
+    setUltimaEdicion(respuesta);
+    void cargar(pagina);
   }
 
   const totalPaginas = listado ? Math.max(1, Math.ceil(listado.total / TAMANIO_PAGINA)) : 1;
@@ -184,6 +194,17 @@ export function PadronPage() {
 
       {listado && listado.items.length === 0 && <p>No hay personas con estos filtros.</p>}
 
+      {ultimaEdicion && (
+        <p className="hint-text">
+          {ultimaEdicion.persona.apellidos}, {ultimaEdicion.persona.nombres} actualizado/a:{" "}
+          {ultimaEdicion.ediciones.length === 0
+            ? "sin cambios"
+            : ultimaEdicion.ediciones
+                .map((e) => `${e.campo} (${e.valor_anterior ?? "—"} → ${e.valor_nuevo ?? "—"})`)
+                .join(", ")}
+        </p>
+      )}
+
       {listado && listado.items.length > 0 && (
         <>
           <div className="table-wrap">
@@ -197,27 +218,46 @@ export function PadronPage() {
                   <th>Círculo</th>
                   <th>Jefe</th>
                   <th>Unidades electorales</th>
+                  <th>Editar</th>
                 </tr>
               </thead>
               <tbody>
                 {listado.items.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      {p.apellidos}, {p.nombres}
-                    </td>
-                    <td>{p.documento ?? "—"}</td>
-                    <td>{p.celular ?? "—"}</td>
-                    <td>{p.estado}</td>
-                    <td>{p.circulo ?? "—"}</td>
-                    <td>{p.es_jefe_grupo ? "Sí" : "No"}</td>
-                    <td>
-                      {p.unidades_electorales.length === 0
-                        ? "—"
-                        : p.unidades_electorales
-                            .map((u) => `${u.tipo} (${u.estado ?? "sin estado"})`)
-                            .join(" / ")}
-                    </td>
-                  </tr>
+                  <Fragment key={p.id}>
+                    <tr>
+                      <td>
+                        {p.apellidos}, {p.nombres}
+                      </td>
+                      <td>{p.documento ?? "—"}</td>
+                      <td>{p.celular ?? "—"}</td>
+                      <td>{p.estado}</td>
+                      <td>{p.circulo ?? "—"}</td>
+                      <td>{p.es_jefe_grupo ? "Sí" : "No"}</td>
+                      <td>
+                        {p.unidades_electorales.length === 0
+                          ? "—"
+                          : p.unidades_electorales
+                              .map((u) => `${u.tipo} (${u.estado ?? "sin estado"})`)
+                              .join(" / ")}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => setEditandoId(editandoId === p.id ? null : p.id)}
+                        >
+                          {editandoId === p.id ? "Cerrar" : "Editar"}
+                        </button>
+                      </td>
+                    </tr>
+                    {editandoId === p.id && (
+                      <PersonaEditForm
+                        persona={p}
+                        onCancel={() => setEditandoId(null)}
+                        onGuardado={handlePersonaGuardada}
+                      />
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

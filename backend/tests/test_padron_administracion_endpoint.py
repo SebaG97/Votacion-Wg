@@ -428,3 +428,252 @@ def test_get_padron_personas_sin_token_da_401_o_403(migrated_db_url, monkeypatch
         assert client.get("/api/v1/padron/personas").status_code == 401
     finally:
         _liberar(engine)
+
+
+# --- PATCH /padron/personas/{id} (Mision 13, DEC-034): edicion de contacto
+# (nombres, apellidos, documento, celular). Reusa el mismo fixture de 8
+# personas de `_construir_excel_fixture`.
+
+
+def _persona_por_apellido(client, apellidos: str) -> dict:
+    items = client.get("/api/v1/padron/personas", headers=_headers()).json()["items"]
+    return next(p for p in items if p["apellidos"] == apellidos)
+
+
+def test_patch_persona_edita_los_4_campos_y_registra_auditoria(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        pedro = _persona_por_apellido(client, "Gonzalez")
+
+        response = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": "Pedro Nuevo",
+                "apellidos": "Gonzalez Actualizado",
+                "documento": "9999999",
+                "celular": "0981-000-001",
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["persona"]["nombres"] == "Pedro Nuevo"
+        assert body["persona"]["apellidos"] == "Gonzalez Actualizado"
+        assert body["persona"]["documento"] == "9999999"
+        assert body["persona"]["celular"] == "0981000001"  # normalizado
+
+        ediciones = body["ediciones"]
+        assert len(ediciones) == 4
+        campos = {e["campo"]: e for e in ediciones}
+        assert campos["nombres"]["valor_anterior"] == "Pedro"
+        assert campos["nombres"]["valor_nuevo"] == "Pedro Nuevo"
+        assert campos["celular"]["valor_anterior"] == "0982222222"
+        assert campos["celular"]["valor_nuevo"] == "0981000001"
+        assert all(e["usuario"] == "admin@wg" for e in ediciones)
+        assert all(e["fecha"] for e in ediciones)
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_solo_celular_genera_una_sola_edicion(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        pedro = _persona_por_apellido(client, "Gonzalez")
+
+        response = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": pedro["nombres"],
+                "apellidos": pedro["apellidos"],
+                "documento": pedro["documento"],
+                "celular": "0981-000-002",
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+
+        assert response.status_code == 200
+        ediciones = response.json()["ediciones"]
+        assert len(ediciones) == 1
+        assert ediciones[0]["campo"] == "celular"
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_celular_invalido_da_422_y_no_guarda_nada(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        pedro = _persona_por_apellido(client, "Gonzalez")
+
+        response = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": pedro["nombres"],
+                "apellidos": pedro["apellidos"],
+                "documento": pedro["documento"],
+                "celular": "abc",
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+
+        assert response.status_code == 422
+
+        sin_cambios = _persona_por_apellido(client, "Gonzalez")
+        assert sin_cambios["celular"] == pedro["celular"]
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_nombres_vacios_da_422(migrated_db_url, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        pedro = _persona_por_apellido(client, "Gonzalez")
+
+        response = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": "   ",
+                "apellidos": pedro["apellidos"],
+                "documento": pedro["documento"],
+                "celular": pedro["celular"],
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+
+        assert response.status_code == 422
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_celular_duplicado_entre_matrimonios_distintos_requiere_confirmacion(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        pedro = _persona_por_apellido(client, "Gonzalez")
+        laura = _persona_por_apellido(client, "Benitez Rojas")
+        assert laura["celular"] == "0985555555"
+
+        sin_confirmar = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": pedro["nombres"],
+                "apellidos": pedro["apellidos"],
+                "documento": pedro["documento"],
+                "celular": laura["celular"],
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+        assert sin_confirmar.status_code == 409
+        assert "Benitez" in sin_confirmar.json()["detail"]
+
+        sin_cambios = _persona_por_apellido(client, "Gonzalez")
+        assert sin_cambios["celular"] == pedro["celular"]
+
+        confirmado = client.patch(
+            f"/api/v1/padron/personas/{pedro['id']}",
+            json={
+                "nombres": pedro["nombres"],
+                "apellidos": pedro["apellidos"],
+                "documento": pedro["documento"],
+                "celular": laura["celular"],
+                "usuario": "admin@wg",
+                "confirmar_duplicado_celular": True,
+            },
+            headers=_headers(),
+        )
+        assert confirmado.status_code == 200
+        assert confirmado.json()["persona"]["celular"] == laura["celular"]
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_celular_duplicado_con_conyuge_del_mismo_matrimonio_no_requiere_confirmacion(
+    migrated_db_url, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        _importar(client, tmp_path)
+        roberto = _persona_por_apellido(client, "Diaz")
+        sonia = _persona_por_apellido(client, "Diaz Insfran")
+        assert roberto["matrimonio_id"] is not None
+        assert roberto["matrimonio_id"] == sonia["matrimonio_id"]
+
+        primero = client.patch(
+            f"/api/v1/padron/personas/{roberto['id']}",
+            json={
+                "nombres": roberto["nombres"],
+                "apellidos": roberto["apellidos"],
+                "documento": roberto["documento"],
+                "celular": "0987-000-000",
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+        assert primero.status_code == 200
+
+        segundo = client.patch(
+            f"/api/v1/padron/personas/{sonia['id']}",
+            json={
+                "nombres": sonia["nombres"],
+                "apellidos": sonia["apellidos"],
+                "documento": sonia["documento"],
+                "celular": "0987-000-000",
+                "usuario": "admin@wg",
+            },
+            headers=_headers(),
+        )
+        assert segundo.status_code == 200
+        assert segundo.json()["persona"]["celular"] == "0987000000"
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_inexistente_da_404(migrated_db_url, monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        response = client.patch(
+            "/api/v1/padron/personas/9999",
+            json={"nombres": "X", "apellidos": "Y", "usuario": "admin@wg"},
+            headers=_headers(),
+        )
+        assert response.status_code == 404
+    finally:
+        _liberar(engine)
+
+
+def test_patch_persona_sin_token_da_401_o_403(migrated_db_url, monkeypatch):
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        body = {"nombres": "X", "apellidos": "Y", "usuario": "admin@wg"}
+
+        monkeypatch.setattr(settings, "admin_api_key", "")
+        assert client.patch("/api/v1/padron/personas/1", json=body).status_code == 403
+
+        monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
+        assert client.patch("/api/v1/padron/personas/1", json=body).status_code == 401
+    finally:
+        _liberar(engine)

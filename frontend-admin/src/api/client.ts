@@ -78,3 +78,14 @@ export function apiPost<TResponse, TBody = unknown>(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+
+export function apiPatch<TResponse, TBody = unknown>(
+  path: string,
+  body?: TBody,
+): Promise<TResponse> {
+  return ejecutar<TResponse>(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}

@@ -729,6 +729,62 @@ tr.clickable:active {
   }
 }
 
+/* Graficos de barras (Mision 13, DEC-035): un componente propio, sin
+   libreria de terceros. Layout tipo "meter" -- cada fila tiene su propio
+   track, por eso ambos extremos van redondeados en vez de solo la punta. */
+.chart-wrap {
+  border: 1px solid var(--color-neutral-100);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  padding: 16px;
+}
+
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bar-chart-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 200px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+}
+
+.bar-chart-label {
+  font-size: 0.78rem;
+  color: var(--color-neutral-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-chart-track {
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-full);
+  height: 12px;
+  overflow: hidden;
+}
+
+.bar-chart-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-500);
+}
+
+.bar-chart-value {
+  font-size: 0.78rem;
+  color: var(--color-neutral-600);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Telefonos chicos (iPhone SE y similares). */
 @media (max-width: 380px) {
   .app-shell {

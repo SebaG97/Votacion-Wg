@@ -21,8 +21,17 @@ from dataclasses import dataclass, field
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, aliased
 
-from app.models import Grupo, ImportacionPadron, IncidenciaPadron, Matrimonio, Persona, UnidadElectoral
+from app.models import (
+    Grupo,
+    ImportacionPadron,
+    IncidenciaPadron,
+    Matrimonio,
+    Persona,
+    PersonaEdicion,
+    UnidadElectoral,
+)
 from app.models.enums import EstadoPersona, SeveridadIncidencia, TipoIncidenciaPadron, TipoUnidadElectoral
+from app.services.padron.normalizacion import normalizar_celular, texto
 
 
 class IncidenciaNoEncontradaError(RuntimeError):
@@ -31,6 +40,20 @@ class IncidenciaNoEncontradaError(RuntimeError):
 
 class IncidenciaYaResueltaError(RuntimeError):
     """La incidencia ya fue marcada como resuelta."""
+
+
+class PersonaNoEncontradaError(RuntimeError):
+    """La `Persona` indicada no existe."""
+
+
+class CelularInvalidoError(RuntimeError):
+    """El celular ingresado no normaliza a un numero valido."""
+
+
+class CelularDuplicadoRequiereConfirmacionError(RuntimeError):
+    """El celular nuevo ya esta asignado a otra persona de un matrimonio
+    distinto (DEC-008). No bloquea -- se reintenta con
+    `confirmar_duplicado_celular=True`."""
 
 
 def listar_importaciones(db: Session) -> list[ImportacionPadron]:
@@ -80,6 +103,108 @@ def resolver_incidencia(db: Session, *, incidencia_id: int, usuario: str) -> Inc
     return incidencia
 
 
+_CAMPOS_EDITABLES = ("nombres", "apellidos", "documento", "celular")
+
+
+def actualizar_persona(
+    db: Session,
+    *,
+    persona_id: int,
+    nombres: str,
+    apellidos: str,
+    documento: str | None,
+    celular: str | None,
+    usuario: str,
+    confirmar_duplicado_celular: bool = False,
+) -> tuple[Persona, list[PersonaEdicion]]:
+    """Edita los 4 campos de contacto de una `Persona` del padron (Mision 13,
+    DEC-034): `nombres`, `apellidos`, `documento`, `celular`. Deliberadamente
+    no toca `estado` ni la consagracion del matrimonio -- eso implicaria
+    recalcular/crear unidades electorales, fuera de alcance.
+
+    `celular` se normaliza con la misma funcion que usa el importador
+    (`normalizar_celular`). Un celular nuevo que ya pertenece a otra persona
+    de un matrimonio distinto no bloquea el guardado (DEC-008: compartir
+    celular con el propio conyuge es normal y no genera aviso), pero exige
+    `confirmar_duplicado_celular=True` para guardarse -- sin eso, levanta
+    `CelularDuplicadoRequiereConfirmacionError` con el detalle de la otra
+    persona, para que el llamador pueda avisar antes de confirmar.
+    """
+    persona = db.get(Persona, persona_id)
+    if persona is None:
+        raise PersonaNoEncontradaError(f"La persona {persona_id} no existe.")
+
+    nombres_norm = texto(nombres)
+    if nombres_norm is None:
+        raise ValueError("`nombres` no puede quedar vacio.")
+    apellidos_norm = texto(apellidos)
+    if apellidos_norm is None:
+        raise ValueError("`apellidos` no puede quedar vacio.")
+    documento_norm = texto(documento)
+
+    celular_crudo = texto(celular)
+    if celular_crudo is None:
+        celular_norm = None
+    else:
+        celular_norm, motivo = normalizar_celular(celular_crudo)
+        if celular_norm is None:
+            raise CelularInvalidoError(
+                f"El celular {celular_crudo!r} no es un numero valido ({motivo})."
+            )
+
+    if celular_norm is not None and celular_norm != persona.celular:
+        duplicados = (
+            db.query(Persona)
+            .filter(Persona.celular == celular_norm, Persona.id != persona.id)
+            .all()
+        )
+        duplicados_otro_matrimonio = [
+            d
+            for d in duplicados
+            if not (persona.matrimonio_id is not None and d.matrimonio_id == persona.matrimonio_id)
+        ]
+        if duplicados_otro_matrimonio and not confirmar_duplicado_celular:
+            nombres_duplicados = ", ".join(
+                f"{d.nombres} {d.apellidos} (persona {d.id})" for d in duplicados_otro_matrimonio
+            )
+            raise CelularDuplicadoRequiereConfirmacionError(
+                f"El celular {celular_norm} ya esta asignado a: {nombres_duplicados} "
+                "(matrimonio distinto). Confirme para guardar el cambio de todos modos."
+            )
+
+    valores_nuevos = {
+        "nombres": nombres_norm,
+        "apellidos": apellidos_norm,
+        "documento": documento_norm,
+        "celular": celular_norm,
+    }
+
+    ediciones: list[PersonaEdicion] = []
+    ahora = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    for campo in _CAMPOS_EDITABLES:
+        valor_anterior = getattr(persona, campo)
+        valor_nuevo = valores_nuevos[campo]
+        if valor_anterior == valor_nuevo:
+            continue
+        edicion = PersonaEdicion(
+            persona_id=persona.id,
+            campo=campo,
+            valor_anterior=valor_anterior,
+            valor_nuevo=valor_nuevo,
+            usuario=usuario,
+            fecha=ahora,
+        )
+        db.add(edicion)
+        ediciones.append(edicion)
+        setattr(persona, campo, valor_nuevo)
+
+    db.commit()
+    db.refresh(persona)
+    for edicion in ediciones:
+        db.refresh(edicion)
+    return persona, ediciones
+
+
 @dataclass
 class UnidadElectoralResumen:
     id: int
@@ -112,6 +237,7 @@ class PadronPersonaFila:
 def listar_padron(
     db: Session,
     *,
+    persona_id: int | None = None,
     circulo: str | None = None,
     grupo_id: int | None = None,
     estado_persona: EstadoPersona | None = None,
@@ -158,6 +284,8 @@ def listar_padron(
         )
     )
 
+    if persona_id is not None:
+        query = query.filter(Persona.id == persona_id)
     if circulo:
         query = query.filter(Grupo.nombre.ilike(f"%{circulo}%"))
     if grupo_id is not None:

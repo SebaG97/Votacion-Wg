@@ -28,11 +28,18 @@ from app.schemas.padron import (
     IncidenciaPadronResponse,
     PadronListadoResponse,
     PadronPersonaResponse,
+    PersonaEdicionResponse,
+    PersonaUpdateRequest,
+    PersonaUpdateResponse,
     ResolverIncidenciaRequest,
 )
 from app.services.padron.administracion import (
+    CelularDuplicadoRequiereConfirmacionError,
+    CelularInvalidoError,
     IncidenciaNoEncontradaError,
     IncidenciaYaResueltaError,
+    PersonaNoEncontradaError,
+    actualizar_persona,
     listar_importaciones,
     listar_incidencias,
     listar_padron,
@@ -145,3 +152,38 @@ def resolver_incidencia_endpoint(
     except IncidenciaYaResueltaError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return IncidenciaPadronResponse.model_validate(incidencia)
+
+
+@router.patch(
+    "/padron/personas/{persona_id}",
+    response_model=PersonaUpdateResponse,
+)
+def actualizar_persona_endpoint(
+    persona_id: int, body: PersonaUpdateRequest, db: Session = Depends(get_db)
+) -> PersonaUpdateResponse:
+    """Edita nombres/apellidos/documento/celular de una persona del padron
+    (Mision 13, DEC-034). Deliberadamente no toca `estado` ni la consagracion
+    del matrimonio -- eso implicaria recalcular/crear unidades electorales."""
+    try:
+        _persona, ediciones = actualizar_persona(
+            db,
+            persona_id=persona_id,
+            nombres=body.nombres,
+            apellidos=body.apellidos,
+            documento=body.documento,
+            celular=body.celular,
+            usuario=body.usuario,
+            confirmar_duplicado_celular=body.confirmar_duplicado_celular,
+        )
+    except PersonaNoEncontradaError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (CelularInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    except CelularDuplicadoRequiereConfirmacionError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    filas, _total = listar_padron(db, persona_id=persona_id)
+    return PersonaUpdateResponse(
+        persona=PadronPersonaResponse.model_validate(filas[0]),
+        ediciones=[PersonaEdicionResponse.model_validate(e) for e in ediciones],
+    )

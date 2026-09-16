@@ -14,6 +14,7 @@ import {
   type Votacion,
   type VotacionEstado,
 } from "../api/votaciones";
+import { BarChart } from "../components/charts/BarChart";
 import { EstadoBadge } from "../components/EstadoBadge";
 import { ResultadosView } from "../components/ResultadosView";
 import { useOperador } from "../context/OperadorContext";
@@ -186,6 +187,73 @@ export function VotacionDetailPage() {
             <dd>{estadoOperativo.pendientes}</dd>
           </div>
         </dl>
+
+        {/* Graficos del tablero en vivo (Mision 13, DEC-035): solo los
+            agregados que el stat-grid de arriba ya muestra (unidades por
+            estado, votos emitidos vs pendientes). Nunca nada desglosado por
+            opcion mientras la votacion no esta CERRADA/RESULTADOS_REVELADOS
+            -- esa vista vive exclusivamente en `ResultadosView`, montada mas
+            abajo solo en esos dos estados (DEC-022). */}
+        <div className="chart-wrap">
+          <BarChart
+            testId="chart-unidades-por-estado"
+            ariaLabel="Unidades electorales por estado"
+            data={[
+              {
+                key: "habilitada",
+                label: "Habilitadas",
+                value: estadoOperativo.unidades_por_estado.habilitada,
+                displayValue: String(estadoOperativo.unidades_por_estado.habilitada),
+                color: "var(--color-success-solid)",
+              },
+              {
+                key: "bloqueada",
+                label: "Bloqueadas por incidencia",
+                value: estadoOperativo.unidades_por_estado.bloqueada_por_incidencia,
+                displayValue: String(estadoOperativo.unidades_por_estado.bloqueada_por_incidencia),
+                color: "var(--color-danger-solid)",
+              },
+              {
+                key: "pendiente-postulantes",
+                label: "Pendiente postulantes",
+                value: estadoOperativo.unidades_por_estado.pendiente_definicion_postulantes,
+                displayValue: String(
+                  estadoOperativo.unidades_por_estado.pendiente_definicion_postulantes,
+                ),
+                color: "var(--color-warning-solid)",
+              },
+              {
+                key: "pendiente-baja",
+                label: "Pendiente baja",
+                value: estadoOperativo.unidades_por_estado.pendiente_definicion_baja,
+                displayValue: String(estadoOperativo.unidades_por_estado.pendiente_definicion_baja),
+                color: "var(--color-info-solid)",
+              },
+            ]}
+          />
+        </div>
+        <div className="chart-wrap">
+          <BarChart
+            testId="chart-votos-vs-pendientes"
+            ariaLabel="Votos emitidos vs. pendientes de votar"
+            data={[
+              {
+                key: "emitidos",
+                label: "Votos emitidos",
+                value: estadoOperativo.votos_emitidos,
+                displayValue: String(estadoOperativo.votos_emitidos),
+                color: "var(--color-primary-500)",
+              },
+              {
+                key: "pendientes",
+                label: "Pendientes de votar",
+                value: estadoOperativo.pendientes,
+                displayValue: String(estadoOperativo.pendientes),
+                color: "var(--color-neutral-400)",
+              },
+            ]}
+          />
+        </div>
 
         <h2>Última importación del padrón</h2>
         {ultimaImportacion ? (

@@ -90,3 +90,38 @@ class PadronListadoResponse(BaseModel):
     pagina: int
     tamanio_pagina: int
     items: list[PadronPersonaResponse]
+
+
+class PersonaUpdateRequest(BaseModel):
+    """`PATCH /padron/personas/{id}` (Mision 13, DEC-034). Los 4 campos se
+    mandan siempre -- el formulario precarga los valores actuales, es
+    reemplazo completo de los 4, no un PATCH parcial por campo. `''` en
+    `documento`/`celular` significa "sin dato". `usuario` reusa el mismo
+    patron que `AbrirVotacionRequest`/`ResolverIncidenciaRequest` (DEC-021):
+    texto libre, sin relacion con el token administrativo.
+    `confirmar_duplicado_celular` reenvia la misma request tras el aviso no
+    bloqueante de celular duplicado entre matrimonios distintos."""
+
+    nombres: str
+    apellidos: str
+    documento: str | None = None
+    celular: str | None = None
+    usuario: str
+    confirmar_duplicado_celular: bool = False
+
+
+class PersonaEdicionResponse(BaseModel):
+    id: int
+    persona_id: int
+    campo: str
+    valor_anterior: str | None
+    valor_nuevo: str | None
+    usuario: str
+    fecha: dt.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PersonaUpdateResponse(BaseModel):
+    persona: PadronPersonaResponse
+    ediciones: list[PersonaEdicionResponse]
