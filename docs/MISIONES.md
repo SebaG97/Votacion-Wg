@@ -531,14 +531,41 @@ Criterios de aceptacion:
 - Cumplido: el tablero en vivo (ABIERTA) nunca muestra ni un grafico ni un dato desglosado por opcion -- verificado en tiempo de ejecucion para los 4 estados de votacion.
 - Pendiente: confirmacion de Sebad sobre la pasada manual con navegador real (ver arriba).
 
+## Mision 14 - Preparacion Del Repositorio Para Despliegue En DigitalOcean App Platform (Parte A)
+
+Estado: completada (2026-09-22) -- solo la Parte A (preparacion del repositorio). La Parte B queda pendiente, ver abajo.
+
+Objetivo: dejar el repositorio listo para desplegarse en DigitalOcean App Platform como tres componentes de una misma app -- `frontend/` y `frontend-admin/` como Static Site, `backend/` como Web Service conectado a la base de datos administrada de DigitalOcean que ya esta en uso. Esta mision es solo la preparacion del repositorio (Parte A); todo lo que se configura a mano en el dashboard de DigitalOcean -- crear la app, los tres componentes, conectar la base, cargar secretos, disparar el primer despliegue -- es la Parte B, responsabilidad de Sebad, fuera de alcance de esta mision.
+
+Entregables reales:
+
+- `docs/DESPLIEGUE.md` (nuevo): documento autocontenido con el Run Command de produccion del backend (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`, sin `--reload` y con `$PORT` en vez del `8000` fijo de desarrollo, porque App Platform inyecta el puerto real), el Pre-Deploy Job (`alembic upgrade head`, para que el esquema quede al dia antes de que la version nueva reciba trafico), y una checklist completa de variables de entorno por componente -- Backend (`DATABASE_URL`, `SECRET_KEY`, `ADMIN_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `CORS_ORIGINS` con las URLs reales de produccion en vez de `localhost`, `RATE_LIMIT_POR_MINUTO`, mas las opcionales con default), `frontend/` y `frontend-admin/` (`VITE_API_BASE_URL` apuntando al backend ya desplegado). Para los dos Static Site documenta ademas activar "catchall document -> `index.html`", porque `frontend/src/App.tsx` y `frontend-admin/src/App.tsx` usan `BrowserRouter` (rutas del lado del cliente, confirmado leyendo ambos archivos) -- sin el catchall, entrar directo a una URL como `/votaciones/5` da 404 del servidor estatico en vez de cargar la app. Cierra con una checklist paso a paso para que Sebad la siga en el dashboard sin tener que volver a preguntar que variable falta.
+- `backend/requirements.txt`: las 8 dependencias directas pasan de minimos (`fastapi>=0.115.0`, etc.) a versiones exactas (`fastapi==0.141.1`, `pydantic-settings==2.15.0`, `uvicorn[standard]==0.52.4`, `sqlalchemy==2.0.52`, `alembic==1.19.1`, `psycopg[binary]==3.3.5`, `openpyxl==3.1.5`, `slowapi==0.1.10`), equivalente a un `pip freeze` de lo que ya esta instalado y probado en el entorno de desarrollo -- para que el build de produccion no resuelva una version distinta a la que corrio la suite en verde.
+- `docs/DECISIONES.md` (DEC-036): registra por que se fijan versiones exactas, por que no se agrega ningun `Procfile`/`Dockerfile` al repositorio (App Platform detecta Python solo, y el Run Command/Pre-Deploy Job se documentan en `docs/DESPLIEGUE.md` en vez de codificarse en un archivo del repo) y el detalle de los dos comandos de plataforma.
+
+No hizo falta ningun cambio de codigo en `backend/app/`, `frontend/src/` ni `frontend-admin/src/`: la configuracion CORS ya lee `CORS_ORIGINS` desde variable de entorno (`backend/app/core/config.py`), y los dos frontends ya leen `VITE_API_BASE_URL` en build time (`src/api/client.ts` de cada uno) -- no habia nada hardcodeado que corregir.
+
+Cobertura de pruebas: suite completa corrida despues de fijar las versiones (Requerimiento 3), confirmando que ningun pin rompio nada -- **149 pruebas de backend en verde** (sin cambio respecto a la Mision 13), **30 pruebas de `frontend` en verde** y **37 pruebas de `frontend-admin` en verde**. `tsc --noEmit` y `vite build` sin errores en los dos frontends (`dist/index.html` + assets, confirmando el Output Directory documentado).
+
+Documentacion: `docs/DESPLIEGUE.md` (nuevo). `docs/DECISIONES.md` (DEC-036).
+
+Criterios de aceptacion:
+
+- Cumplido: el Run Command de produccion del backend esta definido y documentado, sin `--reload` y escuchando en el puerto que inyecta la plataforma.
+- Cumplido: el Pre-Deploy Job (`alembic upgrade head`) esta definido y documentado como paso previo a que el backend sirva trafico.
+- Cumplido: `backend/requirements.txt` fija cada dependencia a la version exacta instalada y probada, no a un minimo.
+- Cumplido: `docs/DESPLIEGUE.md` es una checklist autocontenida con las variables de entorno de los tres componentes (incluido el catchall document de los dos Static Site) que Sebad puede seguir sin volver a este chat.
+- Pendiente (Parte B, fuera de alcance de esta mision, responsabilidad de Sebad): crear la app en el dashboard de DigitalOcean, dar de alta los tres componentes, conectar la base de datos administrada existente, cargar los secretos reales y disparar el primer despliegue.
+
 ## Proxima Mision Recomendada
 
 No queda ninguna mision nueva planificada: la Mision 11 era la ultima de
-`BACKLOG_INICIAL.md`, y las Misiones 12 y 13 fueron pedidos puntuales de
-Sebad sobre el panel administrativo. Lo que resta no es una mision nueva,
-sino cerrar los pendientes explicitos que quedaron abiertos: la confirmacion
-de Sebad sobre la pasada manual de `frontend-admin` (Mision 11, extendida
-ahora al login y al visor de padron de la Mision 12, y al formulario de
-edicion y los graficos de la Mision 13) antes de operar una votacion real.
+`BACKLOG_INICIAL.md`, y las Misiones 12, 13 y 14 fueron pedidos puntuales de
+Sebad. Lo que resta no es una mision nueva, sino cerrar los pendientes
+explicitos que quedaron abiertos: la confirmacion de Sebad sobre la pasada
+manual de `frontend-admin` (Mision 11, extendida ahora al login y al visor
+de padron de la Mision 12, y al formulario de edicion y los graficos de la
+Mision 13) antes de operar una votacion real, y la Parte B de la Mision 14
+(los pasos manuales en el dashboard de DigitalOcean para desplegar).
 
-El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ninguna mision hasta la 13 le agrego ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real.
+El control de acceso sobre `POST /api/v1/votaciones/{id}/votos` y `POST /api/v1/habilitaciones/consultar` sigue pendiente a proposito (DEC-020, DEC-021): ninguna mision hasta la 14 le agrego ninguno, tal como estaba documentado. Conviene resolverlo antes de operar una votacion real.
