@@ -23,8 +23,8 @@ const papeleta: votacionApi.VotacionAbierta = {
   votacion_id: 1,
   nombre: "Consejo 2026",
   opciones: [
-    { id: 10, nombre: "Lista A", orden: 1 },
-    { id: 11, nombre: "Lista B", orden: 2 },
+    { id: 10, nombre: "Lista A", orden: 1, tiene_foto: true },
+    { id: 11, nombre: "Lista B", orden: 2, tiene_foto: false },
   ],
 };
 
@@ -228,5 +228,25 @@ describe("PapeletaVoto", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ana Gomez" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Luis Gomez" })).toBeInTheDocument();
+  });
+
+  it("muestra la foto solo de las opciones que la tienen (DEC-037)", async () => {
+    vi.mocked(votacionApi.urlFotoOpcion).mockImplementation(
+      (votacionId, opcionId) => `/foto/${votacionId}/${opcionId}`,
+    );
+    const { container } = render(
+      <PapeletaVoto
+        unidad={unidad}
+        personas={personas(1)}
+        celularConsultado="0981000001"
+        onVotoRegistrado={vi.fn()}
+        onYaVotado={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole("radio", { name: "Lista A" })).toBeInTheDocument();
+    const fotos = container.querySelectorAll("img.opcion-foto");
+    expect(fotos).toHaveLength(1);
+    expect(fotos[0]).toHaveAttribute("src", "/foto/1/10");
   });
 });

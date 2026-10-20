@@ -445,3 +445,24 @@ Decision: se fijan las 8 dependencias directas de `backend/requirements.txt` a l
 El comando de produccion documentado es `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (sin `--reload`, que es exclusivo de desarrollo; `$PORT` en vez del `8000` fijo de `backend/README.md` porque App Platform inyecta el puerto real). El Pre-Deploy Job documentado es `alembic upgrade head`, para que el esquema quede al dia antes de que la version nueva reciba trafico -- ninguno de los dos comandos es codigo nuevo, son configuracion de plataforma que solo vive en el dashboard y en `docs/DESPLIEGUE.md`.
 
 Consecuencias: `backend/requirements.txt` (versiones exactas). `docs/DESPLIEGUE.md` (nuevo): checklist de variables de entorno por componente (incluye `CORS_ORIGINS` con las URLs reales de produccion, no `localhost`) y el recordatorio de activar "catchall document -> `index.html`" en los dos Static Site, porque `frontend/src/App.tsx` y `frontend-admin/src/App.tsx` usan `BrowserRouter` (rutas del lado del cliente) y sin el catchall cualquier URL que no sea la raiz devuelve 404 del servidor estatico. Ningun cambio funcional en el codigo del backend ni de los frontends. Suite completa corrida despues del pin: 149 pruebas de backend, 30 de `frontend` y 37 de `frontend-admin`, todas en verde; `tsc --noEmit` y `vite build` sin errores en los dos frontends. La Parte B (crear la app, los tres componentes, conectar la base, cargar los secretos y desplegar) queda pendiente y es responsabilidad de Sebad, fuera del alcance de esta mision.
+
+## DEC-037 - Despliegue Real En DigitalOcean: Una Sola App Con Rutas, Migracion En El Run Command, Admin Bajo `/admin`
+
+Fecha: 2026-10-20
+
+Contexto: En la Parte B de la Mision 14 los tres componentes quedaron dentro de una misma app de App Platform, que comparte un unico dominio (`https://votacion-app-bildv.ondigitalocean.app`). DO les asigno rutas por nombre de componente (`/votacion-wg-frontend`, ...), y un sitio de Vite con `base` por defecto (`/`) servido bajo una subruta pide sus assets a la raiz y carga en blanco. Ademas, Sebad prefirio no sumar el componente Job (Pre-Deploy) para `alembic`.
+
+Decision: rutas `/api` -> backend (Preserve Full Path, porque la API ya vive bajo `/api/v1`), `/` -> `frontend/` y `/admin` -> `frontend-admin/` (ambos Trim Prefix). `frontend-admin/vite.config.ts` usa `base: "/admin/"` solo en `vite build` (en `npm run dev` sigue en `/`), y `BrowserRouter` recibe `basename={import.meta.env.BASE_URL.replace(/\/$/, "")}`: sin quitar la barra final, React Router no reconoce `/admin` (sin barra) y no dibuja nada, sin ningun error en consola. `VITE_API_BASE_URL` pasa a ser relativa (`/api/v1`) en los dos frontends: mismo origen, sin CORS de por medio. Run Command del backend: `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT` (seguro con una sola instancia; `alembic` no hace nada si el esquema ya esta al dia).
+
+Consecuencias: `docs/DESPLIEGUE.md` gana una seccion "Configuracion Real En Produccion" que manda sobre lo planificado en DEC-036 donde difieren. Si algun dia se escala el backend a mas de una instancia, la migracion tiene que volver a un Pre-Deploy Job.
+
+## DEC-038 - Foto Del Candidato En Cada Opcion, Guardada En La Base
+
+Fecha: 2026-10-20
+
+Contexto: Sebad pidio mostrar la foto de cada candidato (matrimonios candidatos a Jefes ML 2027-2028) en la papeleta. `OpcionVoto` solo tenia `nombre`/`orden`. App Platform no conserva archivos subidos entre deploys, y DO Spaces suma un costo mensual para un sistema que se usa pocas veces.
+
+Decision: `opciones_voto` gana `foto` (`LargeBinary`, `deferred` en el modelo para que listar opciones no traiga los bytes) y `foto_tipo` (migracion `c3d4e5f6a7b8`). `PUT /votaciones/{id}/opciones/{opcion_id}/foto` (admin; cuerpo = imagen cruda con su `Content-Type`, sin multipart para no sumar `python-multipart`; JPG/PNG/WEBP hasta 1 MB) y `DELETE` del mismo path, ambos solo en `BORRADOR` igual que `agregar_opcion`: la papeleta no cambia una vez abierta. `GET` del mismo path es publico (como la papeleta, DEC-023): la usan el sitio de votacion y la vista previa del panel, un `<img>` no puede mandar `X-Admin-Token`, y una foto no revela ningun conteo. `OpcionVotoResponse` y `OpcionAbiertaResponse` exponen `tiene_foto`. El panel achica la imagen en el navegador (800 px, JPEG) antes de subirla.
+
+Consecuencias: `frontend-admin` muestra "Subir foto / Cambiar foto / Quitar" por opcion en BORRADOR (`components/OpcionFotoEditor.tsx`); `frontend` muestra la foto a la izquierda del nombre en cada opcion de la papeleta. Pruebas: `backend/tests/test_foto_opcion_endpoint.py` (6 casos), `frontend-admin/src/test/opcion-foto.test.tsx` (4) y un caso nuevo en `frontend/src/components/PapeletaVoto.test.tsx`.
+

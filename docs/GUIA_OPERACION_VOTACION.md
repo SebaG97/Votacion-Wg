@@ -33,6 +33,11 @@ hacer esto **antes** de crear/abrir la votacion.
     `BORRADOR`.
   - `POST /api/v1/votaciones/{id}/opciones` `{"nombre": "...", "orden": N}`
     una vez por opcion.
+- Fotos de candidatos (DEC-038, opcional): en la misma pagina, "Subir foto"
+  en cada opcion. El panel achica la imagen antes de subirla. Solo se puede
+  cargar, cambiar o quitar mientras la votacion sigue en `BORRADOR`.
+  HTTP: `PUT /api/v1/votaciones/{id}/opciones/{opcion_id}/foto` con la
+  imagen como cuerpo y `Content-Type: image/jpeg` (o png/webp), hasta 1 MB.
 - La votacion queda en `BORRADOR`: no acepta votos todavia, y el padron
   sigue pudiendo reimportarse mientras siga en este estado.
 

@@ -540,6 +540,24 @@ dd {
   box-shadow: 0 0 0 3px var(--color-primary-100);
 }
 
+.opcion-card.con-foto {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.opcion-foto {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  object-position: center 30%;
+  background: var(--color-neutral-50);
+}
+
 .confirmacion-panel {
   display: flex;
   flex-direction: column;

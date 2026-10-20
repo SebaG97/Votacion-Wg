@@ -45,6 +45,10 @@ export function traducirErrorVotacion(err: unknown): string {
   if (detalle.includes("ya fue resuelta")) {
     return "Esta incidencia ya había sido marcada como revisada.";
   }
+  if (detalle.includes("la foto")) {
+    // Los 422 de la foto (DEC-037) ya vienen redactados para mostrarse tal cual.
+    return err.detail ?? mensajeDeError(err);
+  }
   if (detalle.includes("no existe")) {
     return "No se encontró lo que buscás: puede haber sido eliminado o el id es incorrecto.";
   }

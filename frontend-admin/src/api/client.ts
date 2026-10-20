@@ -89,3 +89,17 @@ export function apiPatch<TResponse, TBody = unknown>(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+
+/** Sube un archivo crudo con su propio `Content-Type` (la foto de una opcion,
+ * DEC-037): el backend lee el cuerpo tal cual, sin multipart. */
+export function apiPutArchivo<TResponse>(path: string, archivo: Blob): Promise<TResponse> {
+  return ejecutar<TResponse>(path, {
+    method: "PUT",
+    headers: { "Content-Type": archivo.type },
+    body: archivo,
+  });
+}
+
+export function apiDelete<TResponse>(path: string): Promise<TResponse> {
+  return ejecutar<TResponse>(path, { method: "DELETE" });
+}

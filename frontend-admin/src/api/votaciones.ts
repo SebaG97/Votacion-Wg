@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./client";
+import { apiBaseUrl, apiDelete, apiGet, apiPost, apiPutArchivo } from "./client";
 
 export type EstadoVotacion = "BORRADOR" | "ABIERTA" | "CERRADA" | "RESULTADOS_REVELADOS";
 
@@ -18,6 +18,7 @@ export type Opcion = {
   votacion_id: number;
   nombre: string;
   orden: number | null;
+  tiene_foto: boolean;
 };
 
 export type ConteoUnidadesPorEstado = {
@@ -85,6 +86,22 @@ export function agregarOpcion(
   body: { nombre: string; orden?: number | null },
 ): Promise<Opcion> {
   return apiPost<Opcion, typeof body>(`/votaciones/${votacionId}/opciones`, body);
+}
+
+/** Foto del candidato (Mision 15, DEC-037): solo en BORRADOR. */
+export function subirFotoOpcion(votacionId: number, opcionId: number, foto: Blob): Promise<Opcion> {
+  return apiPutArchivo<Opcion>(`/votaciones/${votacionId}/opciones/${opcionId}/foto`, foto);
+}
+
+export function quitarFotoOpcion(votacionId: number, opcionId: number): Promise<Opcion> {
+  return apiDelete<Opcion>(`/votaciones/${votacionId}/opciones/${opcionId}/foto`);
+}
+
+/** URL publica de la foto; `version` evita que el navegador muestre la
+ * anterior (cacheada) despues de reemplazarla. */
+export function urlFotoOpcion(votacionId: number, opcionId: number, version?: number): string {
+  const sufijo = version === undefined ? "" : `?v=${version}`;
+  return `${apiBaseUrl}/votaciones/${votacionId}/opciones/${opcionId}/foto${sufijo}`;
 }
 
 export function abrirVotacion(votacionId: number, usuario: string): Promise<Votacion> {

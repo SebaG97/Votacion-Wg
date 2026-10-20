@@ -64,8 +64,9 @@ def test_get_votaciones_abierta_404_sin_votacion_abierta(migrated_db_url):
 
 
 def test_get_votaciones_abierta_no_expone_ningun_resultado(migrated_db_url):
-    """El endpoint solo expone la papeleta (id y nombre de cada opcion), nunca
-    conteos: REGLAS_NEGOCIO.md prohibe resultados antes del cierre."""
+    """El endpoint solo expone la papeleta (id, nombre y si tiene foto de cada
+    opcion, DEC-037), nunca conteos: REGLAS_NEGOCIO.md prohibe resultados
+    antes del cierre."""
     client, engine = _cliente_con_db(migrated_db_url)
     try:
         with Session(bind=engine) as db:
@@ -79,6 +80,6 @@ def test_get_votaciones_abierta_no_expone_ningun_resultado(migrated_db_url):
         body = response.json()
         assert set(body.keys()) == {"votacion_id", "nombre", "opciones"}
         for opcion in body["opciones"]:
-            assert set(opcion.keys()) == {"id", "nombre", "orden"}
+            assert set(opcion.keys()) == {"id", "nombre", "orden", "tiene_foto"}
     finally:
         _liberar(engine)

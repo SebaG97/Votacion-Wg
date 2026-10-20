@@ -1,9 +1,10 @@
-import { apiGet, apiPost } from "./client";
+import { apiBaseUrl, apiGet, apiPost } from "./client";
 
 export type OpcionAbierta = {
   id: number;
   nombre: string;
   orden: number | null;
+  tiene_foto: boolean;
 };
 
 export type VotacionAbierta = {
@@ -42,4 +43,9 @@ export type VotoResponse = {
 
 export function registrarVoto(votacionId: number, body: VotoRequest): Promise<VotoResponse> {
   return apiPost<VotoResponse, VotoRequest>(`/votaciones/${votacionId}/votos`, body);
+}
+
+/** Foto publica del candidato (Mision 15, DEC-037). */
+export function urlFotoOpcion(votacionId: number, opcionId: number): string {
+  return `${apiBaseUrl}/votaciones/${votacionId}/opciones/${opcionId}/foto`;
 }

@@ -61,6 +61,18 @@ class ResultadosBloqueadosError(RuntimeError):
     exponer ningun conteo por opcion."""
 
 
+class OpcionNoEncontradaError(RuntimeError):
+    """La `OpcionVoto` indicada no existe o no pertenece a la votacion."""
+
+
+class FotoInvalidaError(ValueError):
+    """La foto subida no es de un tipo admitido o supera el tamano maximo."""
+
+
+class OpcionSinFotoError(RuntimeError):
+    """La `OpcionVoto` indicada no tiene foto cargada."""
+
+
 class NoHayVotacionAbiertaError(RuntimeError):
     """No existe ninguna `Votacion` en estado ABIERTA."""
 
@@ -105,17 +117,78 @@ def agregar_opcion(
     db: Session, *, votacion_id: int, nombre: str, orden: int | None = None
 ) -> OpcionVoto:
     votacion = _obtener_votacion(db, votacion_id)
-    if votacion.estado != EstadoVotacion.BORRADOR:
-        raise VotacionNoEsBorradorError(
-            f"La votacion {votacion_id} ya no esta en BORRADOR (estado actual "
-            f"'{votacion.estado.value}'): no se pueden agregar ni editar opciones."
-        )
+    _confirmar_borrador(votacion)
 
     opcion = OpcionVoto(votacion_id=votacion_id, nombre=nombre, orden=orden)
     db.add(opcion)
     db.commit()
     db.refresh(opcion)
     return opcion
+
+
+FOTO_TIPOS_ADMITIDOS = frozenset({"image/jpeg", "image/png", "image/webp"})
+FOTO_TAMANO_MAXIMO = 1024 * 1024
+
+
+def _confirmar_borrador(votacion: Votacion) -> None:
+    if votacion.estado != EstadoVotacion.BORRADOR:
+        raise VotacionNoEsBorradorError(
+            f"La votacion {votacion.id} ya no esta en BORRADOR (estado actual "
+            f"'{votacion.estado.value}'): no se pueden agregar ni editar opciones."
+        )
+
+
+def _obtener_opcion(db: Session, votacion_id: int, opcion_id: int) -> OpcionVoto:
+    opcion = db.get(OpcionVoto, opcion_id)
+    if opcion is None or opcion.votacion_id != votacion_id:
+        raise OpcionNoEncontradaError(
+            f"La opcion {opcion_id} no existe en la votacion {votacion_id}."
+        )
+    return opcion
+
+
+def guardar_foto_opcion(
+    db: Session, *, votacion_id: int, opcion_id: int, contenido: bytes, tipo: str
+) -> OpcionVoto:
+    """Reemplaza la foto de una opcion (DEC-037). Igual que `agregar_opcion`,
+    solo mientras la votacion sigue en BORRADOR: una vez abierta, la papeleta
+    que ya vio un votante no cambia."""
+    votacion = _obtener_votacion(db, votacion_id)
+    _confirmar_borrador(votacion)
+    opcion = _obtener_opcion(db, votacion_id, opcion_id)
+
+    if tipo not in FOTO_TIPOS_ADMITIDOS:
+        raise FotoInvalidaError(
+            "La foto debe ser JPG, PNG o WEBP."
+        )
+    if not contenido:
+        raise FotoInvalidaError("La foto esta vacia.")
+    if len(contenido) > FOTO_TAMANO_MAXIMO:
+        raise FotoInvalidaError("La foto supera el tamano maximo de 1 MB.")
+
+    opcion.foto = contenido
+    opcion.foto_tipo = tipo
+    db.commit()
+    db.refresh(opcion)
+    return opcion
+
+
+def quitar_foto_opcion(db: Session, *, votacion_id: int, opcion_id: int) -> OpcionVoto:
+    votacion = _obtener_votacion(db, votacion_id)
+    _confirmar_borrador(votacion)
+    opcion = _obtener_opcion(db, votacion_id, opcion_id)
+    opcion.foto = None
+    opcion.foto_tipo = None
+    db.commit()
+    db.refresh(opcion)
+    return opcion
+
+
+def obtener_foto_opcion(db: Session, *, votacion_id: int, opcion_id: int) -> tuple[bytes, str]:
+    opcion = _obtener_opcion(db, votacion_id, opcion_id)
+    if opcion.foto_tipo is None or opcion.foto is None:
+        raise OpcionSinFotoError(f"La opcion {opcion_id} no tiene foto cargada.")
+    return opcion.foto, opcion.foto_tipo
 
 
 def listar_opciones(db: Session, votacion_id: int) -> list[OpcionVoto]:

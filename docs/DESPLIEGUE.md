@@ -7,6 +7,27 @@ los secretos y disparar el primer despliegue -- la hace Sebad a mano
 siguiendo la checklist de abajo; no es parte de esta mision ni se puede
 automatizar desde el repositorio.
 
+## Configuracion Real En Produccion (2026-10-20, DEC-037)
+
+Lo que quedo andando en la Parte B, que manda sobre lo planificado mas abajo
+donde difieren:
+
+- Una sola app: `https://votacion-app-bildv.ondigitalocean.app`, con la base
+  `segir-db-1` adjunta.
+- Rutas (Settings -> cada componente -> HTTP Request Routes):
+  - `/api` -> backend, **Preserve Full Path**.
+  - `/` -> `frontend`, Trim Prefix.
+  - `/admin` -> `frontend-admin`, Trim Prefix.
+- Run Command del backend (sin Pre-Deploy Job):
+  `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- `VITE_API_BASE_URL=/api/v1` (relativa, Build Time) en los dos frontends.
+- `CORS_ORIGINS=https://votacion-app-bildv.ondigitalocean.app` (todo es mismo
+  origen, no hace falta mas).
+- `DATABASE_URL` con prefijo `postgresql+psycopg://` y `?sslmode=require`.
+- Catchall document `index.html` en los dos Static Site (Settings ->
+  componente -> Custom Pages).
+- `frontend-admin` se construye con `base: "/admin/"` (`vite.config.ts`).
+
 La app tiene tres componentes dentro de un mismo proyecto de App Platform:
 
 | Componente       | Tipo        | Carpeta           |

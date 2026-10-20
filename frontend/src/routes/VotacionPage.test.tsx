@@ -32,7 +32,7 @@ describe("VotacionPage", () => {
     vi.mocked(votacionApi.getVotacionAbierta).mockResolvedValue({
       votacion_id: 1,
       nombre: "Consejo 2026",
-      opciones: [{ id: 10, nombre: "Lista A", orden: 1 }],
+      opciones: [{ id: 10, nombre: "Lista A", orden: 1, tiene_foto: false }],
     });
     vi.mocked(votacionApi.registrarVoto).mockResolvedValue({
       id: 1,
@@ -90,7 +90,7 @@ describe("VotacionPage", () => {
     vi.mocked(votacionApi.getVotacionAbierta).mockResolvedValue({
       votacion_id: 1,
       nombre: "Consejo 2026",
-      opciones: [{ id: 10, nombre: "Lista A", orden: 1 }],
+      opciones: [{ id: 10, nombre: "Lista A", orden: 1, tiene_foto: false }],
     });
     const { ApiError } = await import("../api/client");
     vi.mocked(votacionApi.registrarVoto).mockRejectedValue(

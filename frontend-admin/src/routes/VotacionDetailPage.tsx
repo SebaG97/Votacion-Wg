@@ -16,6 +16,7 @@ import {
 } from "../api/votaciones";
 import { BarChart } from "../components/charts/BarChart";
 import { EstadoBadge } from "../components/EstadoBadge";
+import { OpcionFotoEditor } from "../components/OpcionFotoEditor";
 import { ResultadosView } from "../components/ResultadosView";
 import { useOperador } from "../context/OperadorContext";
 import { mensajeDeError } from "../lib/errores";
@@ -291,7 +292,15 @@ export function VotacionDetailPage() {
             <ul className="opcion-list">
               {opciones.map((o) => (
                 <li key={o.id} className="opcion-card">
-                  {o.nombre}
+                  <span>{o.nombre}</span>
+                  <OpcionFotoEditor
+                    opcion={o}
+                    onCambio={(actualizada) =>
+                      setOpciones((actuales) =>
+                        actuales.map((x) => (x.id === actualizada.id ? actualizada : x)),
+                      )
+                    }
+                  />
                 </li>
               ))}
             </ul>

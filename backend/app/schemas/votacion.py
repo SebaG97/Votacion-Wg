@@ -37,6 +37,7 @@ class OpcionVotoResponse(BaseModel):
     votacion_id: int
     nombre: str
     orden: int | None
+    tiene_foto: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -94,6 +95,7 @@ class OpcionAbiertaResponse(BaseModel):
     id: int
     nombre: str
     orden: int | None
+    tiene_foto: bool = False
 
 
 class VotacionAbiertaResponse(BaseModel):

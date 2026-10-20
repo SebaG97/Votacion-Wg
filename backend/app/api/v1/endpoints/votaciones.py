@@ -20,7 +20,7 @@ from __future__ import annotations
 import csv
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
@@ -38,7 +38,10 @@ from app.schemas.votacion import (
     VotacionResultadosResponse,
 )
 from app.services.votacion import (
+    FotoInvalidaError,
     NoHayVotacionAbiertaError,
+    OpcionNoEncontradaError,
+    OpcionSinFotoError,
     OtraVotacionAbiertaError,
     ResultadosBloqueadosError,
     ResultadosYaReveladosError,
@@ -53,9 +56,12 @@ from app.services.votacion import (
     crear_votacion,
     listar_opciones,
     listar_votaciones,
+    guardar_foto_opcion,
     obtener_estado_operativo,
+    obtener_foto_opcion,
     obtener_resultados,
     obtener_votacion_abierta,
+    quitar_foto_opcion,
     revelar_resultados,
 )
 
@@ -83,8 +89,27 @@ def abierta(db: Session = Depends(get_db)) -> VotacionAbiertaResponse:
         votacion_id=votacion.id,
         nombre=votacion.nombre,
         opciones=[
-            OpcionAbiertaResponse(id=o.id, nombre=o.nombre, orden=o.orden) for o in opciones
+            OpcionAbiertaResponse(
+                id=o.id, nombre=o.nombre, orden=o.orden, tiene_foto=o.tiene_foto
+            )
+            for o in opciones
         ],
+    )
+
+
+@public_router.get("/votaciones/{votacion_id}/opciones/{opcion_id}/foto")
+def foto_opcion(votacion_id: int, opcion_id: int, db: Session = Depends(get_db)) -> Response:
+    """Foto del candidato (Mision 15, DEC-037). Publica como la papeleta: la
+    muestran tanto el sitio de votacion como el panel (un `<img>` no puede
+    mandar `X-Admin-Token`), y una foto no revela ningun conteo."""
+    try:
+        contenido, tipo = obtener_foto_opcion(db, votacion_id=votacion_id, opcion_id=opcion_id)
+    except (OpcionNoEncontradaError, OpcionSinFotoError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return Response(
+        content=contenido,
+        media_type=tipo,
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 
@@ -122,6 +147,47 @@ def crear_opcion(
             db, votacion_id=votacion_id, nombre=body.nombre, orden=body.orden
         )
     except VotacionNoEncontradaError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except VotacionNoEsBorradorError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return OpcionVotoResponse.model_validate(opcion)
+
+
+@router.put(
+    "/votaciones/{votacion_id}/opciones/{opcion_id}/foto",
+    response_model=OpcionVotoResponse,
+)
+async def subir_foto_opcion(
+    votacion_id: int, opcion_id: int, request: Request, db: Session = Depends(get_db)
+) -> OpcionVotoResponse:
+    """El cuerpo es la imagen cruda con su `Content-Type` (`image/jpeg`,
+    `image/png` o `image/webp`), no multipart: evita sumar `python-multipart`
+    como dependencia solo para esto (DEC-037)."""
+    tipo = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    contenido = await request.body()
+    try:
+        opcion = guardar_foto_opcion(
+            db, votacion_id=votacion_id, opcion_id=opcion_id, contenido=contenido, tipo=tipo
+        )
+    except (VotacionNoEncontradaError, OpcionNoEncontradaError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except VotacionNoEsBorradorError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except FotoInvalidaError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    return OpcionVotoResponse.model_validate(opcion)
+
+
+@router.delete(
+    "/votaciones/{votacion_id}/opciones/{opcion_id}/foto",
+    response_model=OpcionVotoResponse,
+)
+def borrar_foto_opcion(
+    votacion_id: int, opcion_id: int, db: Session = Depends(get_db)
+) -> OpcionVotoResponse:
+    try:
+        opcion = quitar_foto_opcion(db, votacion_id=votacion_id, opcion_id=opcion_id)
+    except (VotacionNoEncontradaError, OpcionNoEncontradaError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except VotacionNoEsBorradorError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import {
   getVotacionAbierta,
   registrarVoto,
+  urlFotoOpcion,
   type VotacionAbierta,
   type VotoResponse,
 } from "../api/votacion";
@@ -190,10 +191,19 @@ export function PapeletaVoto({
                   type="button"
                   role="radio"
                   aria-checked={opcionId === opcion.id}
-                  className={`opcion-card ${opcionId === opcion.id ? "seleccionada" : ""}`}
+                  className={`opcion-card ${opcion.tiene_foto ? "con-foto" : ""} ${
+                    opcionId === opcion.id ? "seleccionada" : ""
+                  }`}
                   onClick={() => setOpcionId(opcion.id)}
                 >
-                  {opcion.nombre}
+                  {opcion.tiene_foto && (
+                    <img
+                      className="opcion-foto"
+                      src={urlFotoOpcion(papeleta.votacion_id, opcion.id)}
+                      alt=""
+                    />
+                  )}
+                  <span>{opcion.nombre}</span>
                 </button>
               </li>
             ))}
