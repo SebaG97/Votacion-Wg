@@ -15,7 +15,7 @@ export function App() {
   return (
     <AuthProvider>
       <OperadorProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route
