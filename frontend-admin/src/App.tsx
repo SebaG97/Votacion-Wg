@@ -15,7 +15,7 @@ export function App() {
   return (
     <AuthProvider>
       <OperadorProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route
