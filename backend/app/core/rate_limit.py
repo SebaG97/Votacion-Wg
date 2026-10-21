@@ -28,6 +28,12 @@ def get_client_ip(request: Request) -> str:
     le pega directo (DigitalOcean App Platform siempre enruta via su proxy),
     asi que no debilita la proteccion real.
     """
+    # DigitalOcean App Platform pone la IP real en `DO-Connecting-IP`; el
+    # primer valor de `X-Forwarded-For` lo puede mandar el propio cliente, asi
+    # que cambiandolo en cada request se saltaria el limite.
+    do_connecting_ip = request.headers.get("DO-Connecting-IP")
+    if do_connecting_ip:
+        return do_connecting_ip.strip()
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()

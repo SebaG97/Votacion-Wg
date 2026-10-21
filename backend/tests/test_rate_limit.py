@@ -105,3 +105,23 @@ def test_rate_limit_es_por_ip_no_global(migrated_db_url):
     finally:
         limiter.reset()
         _liberar(engine)
+
+
+def test_la_ip_de_digitalocean_tiene_prioridad_sobre_x_forwarded_for(migrated_db_url):
+    """Cambiar `X-Forwarded-For` en cada request no saltea el limite cuando
+    DigitalOcean informa la IP real en `DO-Connecting-IP`."""
+    client, engine = _cliente_con_db(migrated_db_url)
+    try:
+        limite = settings.rate_limit_por_minuto
+        codigos = [
+            client.post(
+                "/api/v1/habilitaciones/consultar",
+                json={"celular": "0981000001"},
+                headers={"DO-Connecting-IP": "10.0.0.9", "X-Forwarded-For": f"10.1.0.{i}"},
+            ).status_code
+            for i in range(limite + 1)
+        ]
+        assert codigos[-1] == 429
+    finally:
+        limiter.reset()
+        _liberar(engine)

@@ -105,6 +105,14 @@ export function VotacionDetailPage() {
 
   async function handleCerrar() {
     if (!operador.trim() || ejecutandoAccion) return;
+    // Cerrar es irreversible: un click accidental terminaria la eleccion real.
+    if (
+      !window.confirm(
+        `¿Cerrar la votación "${votacion?.nombre ?? ""}"? Después ya nadie podrá votar y no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
     setEjecutandoAccion(true);
     setAccionError(null);
     try {

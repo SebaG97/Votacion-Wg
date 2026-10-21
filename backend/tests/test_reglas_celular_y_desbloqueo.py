@@ -7,6 +7,7 @@ import pytest
 
 from app.models import IncidenciaPadron, OpcionVoto
 from app.models.enums import (
+    EstadoPersona,
     EstadoUnidadElectoral,
     SeveridadIncidencia,
     TipoIncidenciaPadron,
@@ -174,6 +175,41 @@ def test_resolver_nunca_habilita_bajas_ni_postulantes(db_session, estado):
 
     db.refresh(unidad)
     assert unidad.estado == estado.value
+
+
+def test_resolver_bloque_de_postulantes_lo_deja_pendiente_y_no_habilitado(db_session):
+    db = db_session
+    _votacion_abierta(db)
+    grupo = _grupo(db, "POSTULANTES 2026 A")
+    unidad = _unidad_bloque(db, grupo, estado=EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA)
+    primera = _incidencia(db, TipoIncidenciaPadron.CIRCULO_SIN_JEFE, grupo=grupo)
+    segunda = _incidencia(db, TipoIncidenciaPadron.JEFE_SIN_PERSONA_EN_PADRON, grupo=grupo)
+    db.commit()
+
+    resolver_incidencia(db, incidencia_id=primera.id, usuario="op")
+    db.refresh(unidad)
+    assert unidad.estado == EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value
+
+    resolver_incidencia(db, incidencia_id=segunda.id, usuario="op")
+    db.refresh(unidad)
+    assert unidad.estado == EstadoUnidadElectoral.PENDIENTE_DEFINICION_POSTULANTES.value
+
+
+def test_resolver_matrimonio_sin_activos_lo_deja_pendiente_de_baja(db_session):
+    db = db_session
+    _votacion_abierta(db)
+    b1 = _persona(db, "Ivo", "Cinco", "0985555555", estado=EstadoPersona.BAJA_NO_ML)
+    b2 = _persona(db, "Juli", "Cinco", None, estado=EstadoPersona.BAJA_OBSERVACION)
+    unidad = _unidad_matrimonio(
+        db, _matrimonio(db, b1, b2), estado=EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA
+    )
+    incidencia = _incidencia(db, TipoIncidenciaPadron.CONSAGRACION_INCONSISTENTE, persona=b1)
+    db.commit()
+
+    resolver_incidencia(db, incidencia_id=incidencia.id, usuario="op")
+
+    db.refresh(unidad)
+    assert unidad.estado == EstadoUnidadElectoral.PENDIENTE_DEFINICION_BAJA.value
 
 
 # DEC-040: solo las personas ACTIVA votan.

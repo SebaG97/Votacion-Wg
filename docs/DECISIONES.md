@@ -486,3 +486,18 @@ Contexto: DEC-027 solo bloqueaba las unidades sin ningun integrante activo. Si e
 Decision: `consultar_habilitacion` y `registrar_voto` solo consideran personas `ACTIVA` al resolver un celular, y `_confirmar_persona_autorizada` exige que la persona emisora este `ACTIVA`. La unidad sigue habilitada: la vota el conyuge activo, u otro jefe activo del circulo en el caso del bloque.
 
 Consecuencias: si en un matrimonio el unico celular cargado es el del integrante de baja, el activo no puede consultar hasta que se le cargue su propio celular desde Padron -> Editar. Pruebas: 4 casos nuevos en `backend/tests/test_reglas_celular_y_desbloqueo.py`.
+
+## DEC-041 - Ajustes Tras La Prueba Completa Del Simulacro
+
+Fecha: 2026-10-21
+
+Contexto: una prueba de punta a punta (panel y sitio de votacion en navegador, con el padron real) siguiendo la lista de pruebas manuales encontro dos fallas y tres huecos operativos.
+
+Decision:
+- `reevaluar_bloqueo` (DEC-039) ya no pasa siempre a `HABILITADA`: al resolver la ultima incidencia CRITICA la unidad vuelve al estado que le habria dado el importador. Un bloque de postulantes queda `PENDIENTE_DEFINICION_POSTULANTES` y una unidad sin integrantes activos `PENDIENTE_DEFINICION_BAJA`. Antes, marcar como revisadas las incidencias de un circulo de postulantes bloqueado le habilitaba el voto.
+- El sitio de votacion distingue "no esta en el padron" de "esta en el padron pero no tiene un voto a su cargo" (integrante no jefe de un circulo no consagrado).
+- El panel tiene "Descargar CSV" en los resultados (el endpoint `?formato=csv` ya existia sin boton).
+- "Cerrar votacion" pide confirmacion: es irreversible y era un solo click.
+- El rate limit usa `DO-Connecting-IP` (la IP real que informa DigitalOcean) antes que `X-Forwarded-For`, cuyo primer valor lo puede falsear el cliente.
+
+Consecuencias: pruebas nuevas en `backend/tests/test_reglas_celular_y_desbloqueo.py`, `backend/tests/test_rate_limit.py` y `frontend/src/components/ResultadoConsulta.test.tsx`.

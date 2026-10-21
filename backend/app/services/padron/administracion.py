@@ -6,8 +6,9 @@ deliberadamente sin ningun cruce contra `Voto`.
 
 `resolver_incidencia` setea `resuelto_por`/`resuelto_at` y, desde DEC-039,
 reevalua las unidades afectadas: una unidad `BLOQUEADA_POR_INCIDENCIA` sin
-ninguna incidencia CRITICA pendiente vuelve a `HABILITADA` (la "resolucion
-administrativa" de REGLAS_NEGOCIO.md). Hasta DEC-039 resolver era solo
+ninguna incidencia CRITICA pendiente vuelve al estado que le habria dado el
+importador (`HABILITADA`, o el pendiente de postulantes/bajas que la incidencia
+tapaba; la "resolucion administrativa" de REGLAS_NEGOCIO.md). Hasta DEC-039 resolver era solo
 trazabilidad (DEC-025) y las unidades bloqueadas no tenian salida una vez
 congelado el padron. Las unidades de bajas y postulantes (DEC-027/028) nunca
 se tocan.
@@ -34,6 +35,7 @@ from app.models.enums import EstadoPersona, SeveridadIncidencia, TipoIncidenciaP
 from app.services.padron.normalizacion import normalizar_celular, texto
 from app.models.enums import EstadoUnidadElectoral
 from app.services.habilitacion import incidencias_criticas_pendientes
+from app.services.padron.importador import _es_circulo_postulantes
 
 
 class IncidenciaNoEncontradaError(RuntimeError):
@@ -131,9 +133,33 @@ def reevaluar_bloqueo(db: Session, unidades: list[UnidadElectoral]) -> list[Unid
         if unidad.estado != EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value:
             continue
         if not incidencias_criticas_pendientes(db, unidad):
-            unidad.estado = EstadoUnidadElectoral.HABILITADA.value
-            habilitadas.append(unidad)
+            unidad.estado = _estado_sin_incidencias(db, unidad)
+            if unidad.estado == EstadoUnidadElectoral.HABILITADA.value:
+                habilitadas.append(unidad)
     return habilitadas
+
+
+def _estado_sin_incidencias(db: Session, unidad: UnidadElectoral) -> str:
+    """El estado que el importador le habria dado a la unidad sin incidencias
+    criticas: la incidencia tapa a postulantes y bajas, asi que al resolverla
+    un bloque de postulantes vuelve a PENDIENTE_DEFINICION_POSTULANTES y una
+    unidad sin integrantes activos a PENDIENTE_DEFINICION_BAJA, nunca a
+    HABILITADA."""
+    if unidad.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO:
+        personas = db.query(Persona).filter(Persona.matrimonio_id == unidad.referencia_id).all()
+    else:
+        grupo = db.get(Grupo, unidad.referencia_id)
+        if grupo is not None and _es_circulo_postulantes(grupo.nombre):
+            return EstadoUnidadElectoral.PENDIENTE_DEFINICION_POSTULANTES.value
+        personas = (
+            db.query(Persona)
+            .join(Matrimonio, Matrimonio.id == Persona.matrimonio_id)
+            .filter(Matrimonio.grupo_id == unidad.referencia_id, Matrimonio.es_consagrado.is_(False))
+            .all()
+        )
+    if personas and all(p.estado != EstadoPersona.ACTIVA for p in personas):
+        return EstadoUnidadElectoral.PENDIENTE_DEFINICION_BAJA.value
+    return EstadoUnidadElectoral.HABILITADA.value
 
 
 def resolver_incidencia(db: Session, *, incidencia_id: int, usuario: str) -> IncidenciaPadron:

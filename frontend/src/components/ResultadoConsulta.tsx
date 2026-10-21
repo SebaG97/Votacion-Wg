@@ -9,6 +9,22 @@ type ResultadoConsultaProps = {
 };
 
 export function ResultadoConsulta({ consulta, onElegirUnidad }: ResultadoConsultaProps) {
+  if (consulta.unidades.length === 0 && consulta.personas.length > 0) {
+    // La persona esta en el padron pero no tiene ningun voto a su cargo: en los
+    // circulos no consagrados vota solo el jefe, por el bloque.
+    return (
+      <section className="panel">
+        <p className="eyebrow">Resultado de la consulta</p>
+        <h1>No tenés un voto a tu cargo</h1>
+        <p>
+          Figurás en el padrón, pero tu voto lo emite otra persona: en los círculos no consagrados
+          vota el jefe de círculo por todo el bloque. Si creés que es un error, consultá con el
+          administrador.
+        </p>
+      </section>
+    );
+  }
+
   if (consulta.unidades.length === 0) {
     return (
       <section className="panel">

@@ -1,4 +1,4 @@
-import { apiBaseUrl, apiDelete, apiGet, apiPost, apiPutArchivo } from "./client";
+import { apiBaseUrl, apiDelete, apiGet, apiGetTexto, apiPost, apiPutArchivo } from "./client";
 
 export type EstadoVotacion = "BORRADOR" | "ABIERTA" | "CERRADA" | "RESULTADOS_REVELADOS";
 
@@ -136,4 +136,8 @@ export function revelarResultados(votacionId: number): Promise<Votacion> {
  */
 export function obtenerResultados(votacionId: number): Promise<VotacionResultados> {
   return apiGet<VotacionResultados>(`/votaciones/${votacionId}/resultados`);
+}
+
+export function obtenerResultadosCsv(votacionId: number): Promise<string> {
+  return apiGetTexto(`/votaciones/${votacionId}/resultados?formato=csv`);
 }

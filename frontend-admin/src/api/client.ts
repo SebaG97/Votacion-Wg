@@ -34,7 +34,11 @@ async function detalleDeError(response: Response): Promise<string | undefined> {
  * la pantalla de login y limpiar el token guardado, sin que quede cacheado
  * un token invalido reintentando en loop.
  */
-async function ejecutar<TResponse>(path: string, init?: RequestInit): Promise<TResponse> {
+async function ejecutar<TResponse>(
+  path: string,
+  init?: RequestInit,
+  leer: (response: Response) => Promise<TResponse> = (response) => response.json(),
+): Promise<TResponse> {
   const token = obtenerAdminToken();
   const headers: Record<string, string> = {
     ...(init?.headers as Record<string, string> | undefined),
@@ -61,11 +65,15 @@ async function ejecutar<TResponse>(path: string, init?: RequestInit): Promise<TR
   if (response.status === 204) {
     return undefined as TResponse;
   }
-  return response.json() as Promise<TResponse>;
+  return leer(response);
 }
 
 export function apiGet<TResponse>(path: string): Promise<TResponse> {
   return ejecutar<TResponse>(path);
+}
+
+export function apiGetTexto(path: string): Promise<string> {
+  return ejecutar<string>(path, undefined, (response) => response.text());
 }
 
 export function apiPost<TResponse, TBody = unknown>(

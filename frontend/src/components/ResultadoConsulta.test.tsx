@@ -24,6 +24,21 @@ describe("ResultadoConsulta", () => {
     expect(screen.getByText(/este celular no está en el padrón/i)).toBeInTheDocument();
   });
 
+  it("distingue a quien esta en el padron pero no tiene un voto a su cargo", () => {
+    render(
+      <ResultadoConsulta
+        consulta={consultaBase({
+          unidades: [],
+          personas: [{ persona_id: 1, nombres: "Ana", apellidos: "Uno" }],
+        })}
+        onElegirUnidad={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/no tenés un voto a tu cargo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no está en el padrón/i)).not.toBeInTheDocument();
+  });
+
   it("muestra el motivo traducido de una unidad bloqueada, sin el codigo tecnico crudo", () => {
     const consulta = consultaBase({
       unidades: [

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { obtenerResultados, revelarResultados, type VotacionResultados } from "../api/votaciones";
+import {
+  obtenerResultados,
+  obtenerResultadosCsv,
+  revelarResultados,
+  type VotacionResultados,
+} from "../api/votaciones";
 import { mensajeDeError } from "../lib/errores";
 import { traducirErrorVotacion } from "../lib/erroresVotacion";
 import { BarChart } from "./charts/BarChart";
@@ -25,6 +30,8 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
   const [error, setError] = useState<string | null>(null);
   const [revelando, setRevelando] = useState(false);
   const [errorRevelar, setErrorRevelar] = useState<string | null>(null);
+  const [descargando, setDescargando] = useState(false);
+  const [errorCsv, setErrorCsv] = useState<string | null>(null);
 
   async function cargar() {
     setError(null);
@@ -51,6 +58,24 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
       setErrorRevelar(traducirErrorVotacion(err));
     } finally {
       setRevelando(false);
+    }
+  }
+
+  async function handleDescargarCsv() {
+    setDescargando(true);
+    setErrorCsv(null);
+    try {
+      const csv = await obtenerResultadosCsv(votacionId);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `resultados-votacion-${votacionId}.csv`;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErrorCsv(mensajeDeError(err));
+    } finally {
+      setDescargando(false);
     }
   }
 
@@ -106,6 +131,20 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
           <p>
             <strong>Total de votos:</strong> {resultados.total_votos}
           </p>
+
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={descargando}
+            onClick={() => void handleDescargarCsv()}
+          >
+            {descargando ? "Descargando..." : "Descargar CSV"}
+          </button>
+          {errorCsv && (
+            <p className="error-message" role="alert">
+              {errorCsv}
+            </p>
+          )}
 
           <h2>Por opción</h2>
           <div className="table-wrap">
