@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { CheckSquare } from "lucide-react";
 
 import type { HabilitacionConsultaResponse, UnidadElectoralDisponible } from "../api/habilitacion";
 import type { VotoResponse } from "../api/votacion";
@@ -7,6 +6,7 @@ import { ConsultaCelularForm } from "../components/ConsultaCelularForm";
 import { ResultadoConsulta } from "../components/ResultadoConsulta";
 import { PapeletaVoto } from "../components/PapeletaVoto";
 import { ConfirmacionVoto } from "../components/ConfirmacionVoto";
+import { EncabezadoSantuario, PieSantuario } from "../components/EncabezadoSantuario";
 
 type Paso = "consulta" | "resultado" | "papeleta" | "confirmado" | "ya-votado";
 
@@ -39,14 +39,7 @@ export function VotacionPage() {
 
   return (
     <main className="app-shell">
-      <div className="top-bar">
-        <span className="brand">
-          <span className="brand-mark">
-            <CheckSquare size={18} />
-          </span>
-          VOTACION
-        </span>
-      </div>
+      <EncabezadoSantuario compacto={paso !== "consulta"} />
 
       {paso === "consulta" && <ConsultaCelularForm onResultado={handleResultado} />}
 
@@ -72,6 +65,8 @@ export function VotacionPage() {
           <h1>Tu voto ya fue registrado</h1>
         </section>
       )}
+
+      <PieSantuario />
     </main>
   );
 }
