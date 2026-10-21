@@ -466,3 +466,23 @@ Decision: `opciones_voto` gana `foto` (`LargeBinary`, `deferred` en el modelo pa
 
 Consecuencias: `frontend-admin` muestra "Subir foto / Cambiar foto / Quitar" por opcion en BORRADOR (`components/OpcionFotoEditor.tsx`); `frontend` muestra la foto a la izquierda del nombre en cada opcion de la papeleta. Pruebas: `backend/tests/test_foto_opcion_endpoint.py` (6 casos), `frontend-admin/src/test/opcion-foto.test.tsx` (4) y un caso nuevo en `frontend/src/components/PapeletaVoto.test.tsx`.
 
+
+## DEC-039 - Celular Compartido Entre Matrimonios Controlado En Vivo; Resolver La Ultima Incidencia Critica Rehabilita La Unidad
+
+Fecha: 2026-10-21
+
+Contexto: Revision de reglas pedida por Sebad con la votacion ya en uso. Se reprodujeron dos incumplimientos de `REGLAS_NEGOCIO.md`: (1) "Celular duplicado: bloquear la emision directa" solo se aplicaba al importar; despues de `PATCH /padron/personas/{id}` (DEC-034) con `confirmar_duplicado_celular`, un mismo celular resolvia dos matrimonios habilitados y votaba por ambos. (2) "Enviar a resolucion administrativa" no tenia salida: con el padron congelado (DEC-015) y resolver como pura trazabilidad (DEC-025), las unidades `BLOQUEADA_POR_INCIDENCIA` quedaban bloqueadas para siempre, aun despues de cargarles el celular que les faltaba.
+
+Decision: (1) `celular_compartido_entre_matrimonios` (`app/services/habilitacion.py`) se evalua en cada consulta y en cada voto: si el celular pertenece a personas de matrimonios distintos (compartirlo con el conyuge sigue permitido, DEC-008), la consulta devuelve las unidades con motivo `CELULAR_DUPLICADO` y `registrar_voto` levanta `CelularCompartidoError` (409). (2) Reemplaza la parte de DEC-025 sobre que resolver no cambia la habilitacion: `resolver_incidencia` reevalua las unidades afectadas y una unidad `BLOQUEADA_POR_INCIDENCIA` sin incidencias CRITICA pendientes (mismo alcance que DEC-019) vuelve a `HABILITADA`. Cargar un celular valido en un matrimonio con `MATRIMONIO_SIN_CELULAR_DISPONIBLE` resuelve esa incidencia a nombre de quien edito. Las unidades de DEC-027/028 nunca se tocan. La auditoria queda en `resuelto_por`/`resuelto_at` de cada incidencia y en `ediciones_persona`.
+
+Consecuencias: `frontend` traduce `CELULAR_DUPLICADO`; la pagina de Incidencias del panel avisa que marcar revisada la ultima incidencia critica rehabilita la unidad. Pruebas: `backend/tests/test_reglas_celular_y_desbloqueo.py` (8 casos). Queda abierta la regla de bajas individuales (una persona de baja en un matrimonio con conyuge activo hoy puede votar), pendiente de decision de Sebad.
+
+## DEC-040 - Solo Las Personas Activas Votan
+
+Fecha: 2026-10-21
+
+Contexto: DEC-027 solo bloqueaba las unidades sin ningun integrante activo. Si en un matrimonio uno de los dos estaba de baja (`BAJA_NO_ML` o `BAJA_OBSERVACION`) y el otro activo, el de baja podia consultar con su celular y emitir el voto del matrimonio; lo mismo un jefe de baja por el bloque de su circulo. Sebad decidio que solo votan los integrantes activos.
+
+Decision: `consultar_habilitacion` y `registrar_voto` solo consideran personas `ACTIVA` al resolver un celular, y `_confirmar_persona_autorizada` exige que la persona emisora este `ACTIVA`. La unidad sigue habilitada: la vota el conyuge activo, u otro jefe activo del circulo en el caso del bloque.
+
+Consecuencias: si en un matrimonio el unico celular cargado es el del integrante de baja, el activo no puede consultar hasta que se le cargue su propio celular desde Padron -> Editar. Pruebas: 4 casos nuevos en `backend/tests/test_reglas_celular_y_desbloqueo.py`.

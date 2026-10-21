@@ -9,6 +9,10 @@ describe("traducirMotivoNoDisponible", () => {
     );
   });
 
+  it("traduce CELULAR_DUPLICADO a lenguaje claro (DEC-039)", () => {
+    expect(traducirMotivoNoDisponible("CELULAR_DUPLICADO")).toContain("más de un matrimonio");
+  });
+
   it("traduce YA_VOTADO a lenguaje claro", () => {
     expect(traducirMotivoNoDisponible("YA_VOTADO")).toBe("Esta unidad ya emitió su voto.");
   });
@@ -25,6 +29,7 @@ describe("traducirMotivoNoDisponible", () => {
   it("nunca devuelve el codigo tecnico crudo", () => {
     const motivos = [
       "BLOQUEADA_POR_INCIDENCIA",
+      "CELULAR_DUPLICADO",
       "YA_VOTADO",
       "PENDIENTE_DEFINICION_POSTULANTES",
       "PENDIENTE_DEFINICION_BAJA",

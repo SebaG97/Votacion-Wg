@@ -4,13 +4,13 @@ como revisadas. Mision 12 (DEC-031) agrega `listar_padron`: un visor
 filtrable y paginado de personas/matrimonios/grupos/unidades electorales,
 deliberadamente sin ningun cruce contra `Voto`.
 
-`resolver_incidencia` es trazabilidad administrativa pura: setea
-`resuelto_por`/`resuelto_at` (columnas de `IncidenciaPadron` que existen desde
-la Mision 03 pero que hasta esta mision nunca se escribian) y nunca toca
-`UnidadElectoral.estado`. Recalcular la habilitacion de una unidad
-automaticamente exigiria resolver antes DEC-012 (bajas), DEC-013 (circulos de
-postulantes) y DEC-014 (doble rol de jefes consagrados), las tres todavia
-pendientes de negocio.
+`resolver_incidencia` setea `resuelto_por`/`resuelto_at` y, desde DEC-039,
+reevalua las unidades afectadas: una unidad `BLOQUEADA_POR_INCIDENCIA` sin
+ninguna incidencia CRITICA pendiente vuelve a `HABILITADA` (la "resolucion
+administrativa" de REGLAS_NEGOCIO.md). Hasta DEC-039 resolver era solo
+trazabilidad (DEC-025) y las unidades bloqueadas no tenian salida una vez
+congelado el padron. Las unidades de bajas y postulantes (DEC-027/028) nunca
+se tocan.
 """
 
 from __future__ import annotations
@@ -32,6 +32,8 @@ from app.models import (
 )
 from app.models.enums import EstadoPersona, SeveridadIncidencia, TipoIncidenciaPadron, TipoUnidadElectoral
 from app.services.padron.normalizacion import normalizar_celular, texto
+from app.models.enums import EstadoUnidadElectoral
+from app.services.habilitacion import incidencias_criticas_pendientes
 
 
 class IncidenciaNoEncontradaError(RuntimeError):
@@ -86,6 +88,54 @@ def listar_incidencias(
     return query.order_by(IncidenciaPadron.id).all()
 
 
+def _unidades_afectadas(
+    db: Session, *, persona_ids: set[int], grupo_ids: set[int]
+) -> list[UnidadElectoral]:
+    """Unidades que una incidencia o una edicion puede estar bloqueando: el
+    matrimonio de cada persona y el bloque de cada circulo involucrado.
+    `reevaluar_bloqueo` decide despues, con el alcance exacto de DEC-019, si
+    cada una sigue bloqueada."""
+    matrimonio_ids = {
+        m
+        for (m,) in db.query(Persona.matrimonio_id).filter(Persona.id.in_(persona_ids)).all()
+        if m is not None
+    } if persona_ids else set()
+    filtros = []
+    if matrimonio_ids:
+        filtros.append(
+            and_(
+                UnidadElectoral.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO,
+                UnidadElectoral.referencia_id.in_(matrimonio_ids),
+            )
+        )
+    if grupo_ids:
+        filtros.append(
+            and_(
+                UnidadElectoral.tipo == TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO,
+                UnidadElectoral.referencia_id.in_(grupo_ids),
+            )
+        )
+    if not filtros:
+        return []
+    return db.query(UnidadElectoral).filter(or_(*filtros)).all()
+
+
+def reevaluar_bloqueo(db: Session, unidades: list[UnidadElectoral]) -> list[UnidadElectoral]:
+    """DEC-039: una unidad `BLOQUEADA_POR_INCIDENCIA` vuelve a `HABILITADA`
+    cuando ya no le queda ninguna incidencia CRITICA sin resolver (mismo
+    alcance que el importador, DEC-019). Nunca toca las unidades de bajas ni
+    de postulantes (DEC-027/028): solo mira las bloqueadas por incidencia.
+    No hace commit; devuelve las unidades que se habilitaron."""
+    habilitadas = []
+    for unidad in unidades:
+        if unidad.estado != EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value:
+            continue
+        if not incidencias_criticas_pendientes(db, unidad):
+            unidad.estado = EstadoUnidadElectoral.HABILITADA.value
+            habilitadas.append(unidad)
+    return habilitadas
+
+
 def resolver_incidencia(db: Session, *, incidencia_id: int, usuario: str) -> IncidenciaPadron:
     incidencia = db.get(IncidenciaPadron, incidencia_id)
     if incidencia is None:
@@ -98,6 +148,20 @@ def resolver_incidencia(db: Session, *, incidencia_id: int, usuario: str) -> Inc
 
     incidencia.resuelto_por = usuario
     incidencia.resuelto_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    db.flush()
+    # DEC-039 (reemplaza la parte de DEC-025 que decia que resolver no cambia
+    # ninguna habilitacion): resolver la ultima incidencia critica de una
+    # unidad la vuelve a habilitar. Si el problema era un celular compartido
+    # entre matrimonios y nadie lo corrigio, el chequeo en vivo de
+    # `celular_compartido_entre_matrimonios` lo sigue frenando igual.
+    reevaluar_bloqueo(
+        db,
+        _unidades_afectadas(
+            db,
+            persona_ids={incidencia.persona_id} if incidencia.persona_id is not None else set(),
+            grupo_ids={incidencia.grupo_id} if incidencia.grupo_id is not None else set(),
+        ),
+    )
     db.commit()
     db.refresh(incidencia)
     return incidencia
@@ -198,11 +262,41 @@ def actualizar_persona(
         ediciones.append(edicion)
         setattr(persona, campo, valor_nuevo)
 
+    if celular_norm is not None and persona.matrimonio_id is not None:
+        _resolver_sin_celular(db, persona=persona, usuario=usuario, fecha=ahora)
+
     db.commit()
     db.refresh(persona)
     for edicion in ediciones:
         db.refresh(edicion)
     return persona, ediciones
+
+
+def _resolver_sin_celular(db: Session, *, persona: Persona, usuario: str, fecha: dt.datetime) -> None:
+    """DEC-039: si el matrimonio estaba bloqueado por no tener ningun celular
+    valido (DEC-017) y ahora uno de sus integrantes lo tiene, esa incidencia
+    queda resuelta (a nombre de quien edito) y la unidad se reevalua."""
+    integrantes_ids = [
+        pid for (pid,) in db.query(Persona.id).filter(Persona.matrimonio_id == persona.matrimonio_id)
+    ]
+    pendientes = (
+        db.query(IncidenciaPadron)
+        .filter(
+            IncidenciaPadron.tipo == TipoIncidenciaPadron.MATRIMONIO_SIN_CELULAR_DISPONIBLE,
+            IncidenciaPadron.persona_id.in_(integrantes_ids),
+            IncidenciaPadron.resuelto_at.is_(None),
+        )
+        .all()
+    )
+    if not pendientes:
+        return
+    for incidencia in pendientes:
+        incidencia.resuelto_por = usuario
+        incidencia.resuelto_at = fecha
+    db.flush()
+    reevaluar_bloqueo(
+        db, _unidades_afectadas(db, persona_ids=set(integrantes_ids), grupo_ids=set())
+    )
 
 
 @dataclass

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models import IncidenciaPadron, Matrimonio, Persona, UnidadElectoral, Votacion, Voto
 from app.models.enums import EstadoUnidadElectoral as Estado
-from app.models.enums import SeveridadIncidencia, TipoUnidadElectoral
+from app.models.enums import EstadoPersona, SeveridadIncidencia, TipoUnidadElectoral
 from app.schemas.habilitacion import (
     HabilitacionConsultaResponse,
     IncidenciaRespuesta,
@@ -31,6 +31,20 @@ from app.services.padron.normalizacion import normalizar_celular
 from app.services.votacion import NoHayVotacionAbiertaError, obtener_votacion_abierta
 
 MOTIVO_YA_VOTADO = "YA_VOTADO"
+MOTIVO_CELULAR_DUPLICADO = "CELULAR_DUPLICADO"
+
+
+def celular_compartido_entre_matrimonios(personas: list[Persona]) -> bool:
+    """DEC-039: el celular pertenece a personas de matrimonios (u hogares)
+    distintos. Compartirlo con el propio conyuge es normal (DEC-008) y no
+    cuenta. Se evalua en cada consulta y en cada voto, no solo al importar,
+    porque `PATCH /padron/personas/{id}` (DEC-034) puede crear un duplicado
+    despues de la importacion."""
+    hogares = {
+        ("matrimonio", p.matrimonio_id) if p.matrimonio_id is not None else ("persona", p.id)
+        for p in personas
+    }
+    return len(hogares) > 1
 
 # Re-exportado: `NoHayVotacionAbiertaError` vivia en este modulo antes de la
 # Mision 09 (DEC-023), que lo movio a `app/services/votacion.py` junto con
@@ -39,7 +53,9 @@ MOTIVO_YA_VOTADO = "YA_VOTADO"
 # ya lo referencian por este camino.
 
 
-def _incidencias_criticas_matrimonio(db: Session, matrimonio: Matrimonio) -> list[IncidenciaPadron]:
+def _incidencias_criticas_matrimonio(
+    db: Session, matrimonio: Matrimonio, *, solo_pendientes: bool = False
+) -> list[IncidenciaPadron]:
     """Misma condicion de bloqueo que usa el importador (DEC-019) para MATRIMONIO_CONSAGRADO:
     incidencia CRITICA sobre alguno de sus propios integrantes. Una incidencia sobre otro
     matrimonio del mismo circulo no bloquea a este, asi que no cuenta como su causa."""
@@ -47,15 +63,19 @@ def _incidencias_criticas_matrimonio(db: Session, matrimonio: Matrimonio) -> lis
     if matrimonio.integrante_2_id is not None:
         integrantes_ids.append(matrimonio.integrante_2_id)
 
-    return (
+    query = (
         db.query(IncidenciaPadron)
         .filter(IncidenciaPadron.severidad == SeveridadIncidencia.CRITICA)
         .filter(IncidenciaPadron.persona_id.in_(integrantes_ids))
-        .all()
     )
+    if solo_pendientes:
+        query = query.filter(IncidenciaPadron.resuelto_at.is_(None))
+    return query.all()
 
 
-def _incidencias_criticas_grupo(db: Session, grupo_id: int) -> list[IncidenciaPadron]:
+def _incidencias_criticas_grupo(
+    db: Session, grupo_id: int, *, solo_pendientes: bool = False
+) -> list[IncidenciaPadron]:
     """Misma condicion de bloqueo que usa el importador (DEC-019) para BLOQUE_NO_CONSAGRADO:
     incidencia CRITICA sobre el circulo en si (`persona_id IS NULL`) o sobre alguno de sus
     jefes. Una incidencia de un matrimonio consagrado puntual del mismo circulo, cuya
@@ -68,13 +88,28 @@ def _incidencias_criticas_grupo(db: Session, grupo_id: int) -> list[IncidenciaPa
     if jefes_ids:
         filtros.append(IncidenciaPadron.persona_id.in_(jefes_ids))
 
-    return (
+    query = (
         db.query(IncidenciaPadron)
         .filter(IncidenciaPadron.severidad == SeveridadIncidencia.CRITICA)
         .filter(IncidenciaPadron.grupo_id == grupo_id)
         .filter(or_(*filtros))
-        .all()
     )
+    if solo_pendientes:
+        query = query.filter(IncidenciaPadron.resuelto_at.is_(None))
+    return query.all()
+
+
+def incidencias_criticas_pendientes(db: Session, unidad: UnidadElectoral) -> list[IncidenciaPadron]:
+    """Incidencias CRITICA todavia sin resolver que bloquean esta unidad, con
+    el mismo alcance que usa el importador (DEC-019). Reusada por
+    `reevaluar_bloqueo` (DEC-039) para decidir si la unidad puede volver a
+    HABILITADA."""
+    if unidad.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO:
+        matrimonio = db.get(Matrimonio, unidad.referencia_id)
+        if matrimonio is None:
+            return []
+        return _incidencias_criticas_matrimonio(db, matrimonio, solo_pendientes=True)
+    return _incidencias_criticas_grupo(db, unidad.referencia_id, solo_pendientes=True)
 
 
 def unidades_candidatas(db: Session, personas: list[Persona]) -> dict[int, UnidadElectoral]:
@@ -170,9 +205,11 @@ def consultar_habilitacion(db: Session, celular: str) -> HabilitacionConsultaRes
     if celular_normalizado is None:
         return HabilitacionConsultaResponse(celular_normalizado=None, habilitado=False)
 
+    # DEC-040: solo las personas ACTIVA votan. Una baja (No ML u observacion)
+    # no habilita nada con su celular, aunque su conyuge siga activo.
     personas = (
         db.query(Persona)
-        .filter(Persona.celular == celular_normalizado)
+        .filter(Persona.celular == celular_normalizado, Persona.estado == EstadoPersona.ACTIVA)
         .order_by(Persona.id)
         .all()
     )
@@ -186,6 +223,13 @@ def consultar_habilitacion(db: Session, celular: str) -> HabilitacionConsultaRes
         _evaluar_unidad(db, votacion, unidad)
         for unidad in sorted(candidatas.values(), key=lambda u: u.id)
     ]
+    if celular_compartido_entre_matrimonios(personas):
+        # DEC-039 (REGLAS_NEGOCIO.md, "Celular duplicado"): bloquear la emision
+        # directa y mandar a revision administrativa.
+        for unidad in unidades_respuesta:
+            if unidad.disponible:
+                unidad.disponible = False
+                unidad.motivo_no_disponible = MOTIVO_CELULAR_DUPLICADO
 
     return HabilitacionConsultaResponse(
         celular_normalizado=celular_normalizado,

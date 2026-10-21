@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 
 from app.models import Matrimonio, OpcionVoto, Persona, UnidadElectoral, Votacion, Voto
 from app.models.enums import EstadoUnidadElectoral as EstadoUnidad
-from app.models.enums import EstadoVotacion, TipoUnidadElectoral
-from app.services.habilitacion import unidades_candidatas
+from app.models.enums import EstadoPersona, EstadoVotacion, TipoUnidadElectoral
+from app.services.habilitacion import celular_compartido_entre_matrimonios, unidades_candidatas
 from app.services.padron.normalizacion import normalizar_celular
 
 
@@ -53,6 +53,10 @@ class CelularNoResuelveUnidadError(RuntimeError):
 
 class PersonaNoAutorizadaError(RuntimeError):
     """`emitido_por_persona_id` no es integrante ni jefe autorizado de la unidad."""
+
+
+class CelularCompartidoError(RuntimeError):
+    """El celular pertenece a personas de matrimonios distintos (DEC-039)."""
 
 
 class VotoDuplicadoError(RuntimeError):
@@ -93,8 +97,17 @@ def _confirmar_celular_resuelve_unidad(
 ) -> None:
     celular_normalizado, _motivo_rechazo = normalizar_celular(celular_consultado)
     if celular_normalizado is not None:
-        personas = db.query(Persona).filter(Persona.celular == celular_normalizado).all()
+        personas = (
+            db.query(Persona)
+            .filter(Persona.celular == celular_normalizado, Persona.estado == EstadoPersona.ACTIVA)
+            .all()
+        )
         if unidad_electoral_id in unidades_candidatas(db, personas):
+            if celular_compartido_entre_matrimonios(personas):
+                raise CelularCompartidoError(
+                    "La unidad electoral no esta disponible para votar: el celular "
+                    "figura en mas de un matrimonio y requiere revision administrativa."
+                )
             return
 
     raise CelularNoResuelveUnidadError(
@@ -118,6 +131,12 @@ def _confirmar_persona_autorizada(
             and persona.es_jefe_grupo
             and persona.grupo_id == unidad.referencia_id
         )
+
+    if autorizada:
+        # DEC-040: una persona dada de baja no emite voto, ni por su
+        # matrimonio ni por el bloque de su circulo.
+        emisora = db.get(Persona, emitido_por_persona_id)
+        autorizada = emisora is not None and emisora.estado == EstadoPersona.ACTIVA
 
     if not autorizada:
         raise PersonaNoAutorizadaError(

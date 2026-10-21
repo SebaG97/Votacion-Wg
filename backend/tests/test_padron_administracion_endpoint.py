@@ -128,7 +128,7 @@ def test_get_incidencias_lista_y_filtra_por_severidad_tipo_y_resuelta(
         _liberar(engine)
 
 
-def test_post_resolver_incidencia_marca_resuelto_por_y_at_sin_tocar_unidades(
+def test_post_resolver_incidencia_marca_resuelto_por_y_at_sin_habilitar_unidades_con_otras_pendientes(
     migrated_db_url, tmp_path, monkeypatch
 ):
     monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)

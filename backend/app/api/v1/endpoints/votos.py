@@ -5,6 +5,7 @@ from app.core.rate_limit import RATE_LIMIT_OPERATIVO, limiter
 from app.db.session import get_db
 from app.schemas.voto import VotoRequest, VotoResponse
 from app.services.voto import (
+    CelularCompartidoError,
     CelularNoResuelveUnidadError,
     OpcionInvalidaError,
     PersonaNoAutorizadaError,
@@ -42,6 +43,7 @@ def crear_voto(
     except (
         VotacionNoDisponibleError,
         UnidadElectoralNoDisponibleError,
+        CelularCompartidoError,
         VotoDuplicadoError,
     ) as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

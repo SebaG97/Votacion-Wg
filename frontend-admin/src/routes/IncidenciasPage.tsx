@@ -65,8 +65,9 @@ export function IncidenciasPage() {
       <p className="eyebrow">Padrón</p>
       <h1>Incidencias</h1>
       <p className="warning-banner">
-        Marcar una incidencia como "revisada" es solo trazabilidad administrativa: no rehabilita
-        ninguna unidad electoral ni cambia su estado de votación.
+        Marcar como "revisada" la última incidencia crítica de un matrimonio o círculo lo vuelve
+        a habilitar para votar. Hacelo solo después de corregir el dato o confirmar que no es un
+        problema real.
       </p>
 
       <div className="filters">

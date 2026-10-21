@@ -9,6 +9,8 @@ export function traducirMotivoNoDisponible(motivo: string | null): string {
   switch (motivo) {
     case "BLOQUEADA_POR_INCIDENCIA":
       return "Hay un problema con tus datos, contactá al administrador.";
+    case "CELULAR_DUPLICADO":
+      return "Este celular figura en más de un matrimonio del padrón. Contactá al administrador para revisarlo.";
     case "YA_VOTADO":
       return "Esta unidad ya emitió su voto.";
     case "PENDIENTE_DEFINICION_POSTULANTES":
