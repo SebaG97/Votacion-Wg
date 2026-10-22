@@ -3,8 +3,9 @@
 Reglas confirmadas por el responsable del padron (22/10/2026):
 
 1. Un solo voto por grupo (o agrupacion) de no consagrados.
-2. Si todos los del grupo son postulantes y tienen educador, el bloque lo vota
-   el educador. El educador figura en la fila separadora al inicio de cada
+2. Si todos los del grupo son postulantes, el bloque lo vota el jefe del
+   grupo; solo si el grupo no tiene jefe activo lo vota el educador
+   (aclaracion del 22/10: "al tener jefe ya no necesita educador"). El educador figura en la fila separadora al inicio de cada
    lista de grupo del Excel; es un matrimonio consagrado de otro circulo y su
    celular esta en el circulo del que es miembro.
 3. Si el grupo tiene una parte de consagrados y otra de postulantes, cada
@@ -12,8 +13,7 @@ Reglas confirmadas por el responsable del padron (22/10/2026):
    postulantes. En el padron esa parte consagrada quedo como un circulo
    aparte (".../64", "CIRCULO 58", ...), y a veces el jefe esta ahi.
 
-Si el educador esta de baja o el grupo no tiene educador, vota el jefe del
-propio circulo; si tampoco hay jefe activo, el bloque no vota.
+Sin jefe activo ni educador activo, el bloque no vota.
 
 La fila separadora del Excel trae el educador como texto libre ("Betty y
 Gilberto Gauto"), asi que la correspondencia con el padron se fijo a mano,
@@ -114,7 +114,23 @@ def _grupo_por_clave(db: Session, clave: str) -> Grupo | None:
     return None
 
 
+def _tiene_jefe_activo(db: Session, grupo_id: int) -> bool:
+    return (
+        db.query(Persona)
+        .filter(
+            Persona.grupo_id == grupo_id,
+            Persona.es_jefe_grupo.is_(True),
+            Persona.estado == EstadoPersona.ACTIVA,
+        )
+        .count()
+        > 0
+    )
+
+
 def _votante_asignado(db: Session, grupo: Grupo) -> int | None:
+    # Con jefe activo en el propio circulo no hace falta educador: vota el jefe.
+    if _tiene_jefe_activo(db, grupo.id):
+        return None
     clave = clave_circulo(grupo.nombre)
     if clave in EDUCADORES:
         educador = _matrimonio_por_apellidos(db, EDUCADORES[clave])
@@ -145,16 +161,7 @@ def tiene_quien_vote(db: Session, unidad: UnidadElectoral) -> bool:
     activo o, sin votante asignado, si el circulo tiene un jefe activo."""
     if unidad.votante_matrimonio_id is not None:
         return _tiene_integrante_activo(db, unidad.votante_matrimonio_id)
-    return (
-        db.query(Persona)
-        .filter(
-            Persona.grupo_id == unidad.referencia_id,
-            Persona.es_jefe_grupo.is_(True),
-            Persona.estado == EstadoPersona.ACTIVA,
-        )
-        .count()
-        > 0
-    )
+    return _tiene_jefe_activo(db, unidad.referencia_id)
 
 
 def estado_bloque_sin_incidencias(db: Session, unidad: UnidadElectoral) -> str:

@@ -18,7 +18,7 @@ export function ResultadoConsulta({ consulta, onElegirUnidad }: ResultadoConsult
         <h1>No tenés un voto a tu cargo</h1>
         <p>
           Figurás en el padrón, pero tu voto lo emite otra persona: en los círculos no consagrados
-          vota por todo el bloque el jefe de círculo o, en los de postulantes, el educador. Si creés
+          vota por todo el bloque el jefe de círculo o, si el grupo no tiene jefe, el educador. Si creés
           que es un error, consultá con el administrador.
         </p>
       </section>

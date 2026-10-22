@@ -1,6 +1,6 @@
-"""DEC-042: el bloque de un grupo de postulantes lo vota su educador; el de un
-grupo mixto, el jefe aunque haya quedado en la parte consagrada; sin educador
-activo, el jefe del propio circulo."""
+"""DEC-042: el bloque de un grupo de postulantes lo vota su jefe y, si no
+tiene jefe activo, su educador; el de un grupo mixto, el jefe aunque haya
+quedado en la parte consagrada."""
 
 from __future__ import annotations
 
@@ -55,10 +55,10 @@ def _educador_gauto_borja(db, **estado):
     return e1, matrimonio
 
 
-def test_el_educador_vota_el_bloque_ademas_de_su_matrimonio(db_session):
+def test_sin_jefe_el_educador_vota_el_bloque_ademas_de_su_matrimonio(db_session):
     db = db_session
     votacion = _votacion_abierta(db)
-    _grupo_p, jefe, bloque = _postulantes(db, 'POSTULANTES 2022 "B"', con_jefe=True)
+    _grupo_p, postulante, bloque = _postulantes(db, 'POSTULANTES 2022 "B"', con_jefe=False)
     educador, matrimonio = _educador_gauto_borja(db)
     db.commit()
 
@@ -69,14 +69,14 @@ def test_el_educador_vota_el_bloque_ademas_de_su_matrimonio(db_session):
     assert bloque.estado == EstadoUnidadElectoral.HABILITADA.value
     unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, "0981000002").unidades}
     assert bloque.id in unidades and len(unidades) == 2
-    # El jefe postulante ya no lo ve: lo vota el educador.
+    # El postulante no lo ve: lo vota el educador.
     assert consultar_habilitacion(db, "0991000001").unidades == []
 
     opcion = _opcion(db, votacion)
     with pytest.raises(CelularNoResuelveUnidadError):
         registrar_voto(
             db, votacion_id=votacion.id, celular_consultado="0991000001",
-            unidad_electoral_id=bloque.id, opcion_id=opcion.id, emitido_por_persona_id=jefe.id,
+            unidad_electoral_id=bloque.id, opcion_id=opcion.id, emitido_por_persona_id=postulante.id,
         )
     voto = registrar_voto(
         db, votacion_id=votacion.id, celular_consultado="0981000002",
@@ -85,11 +85,12 @@ def test_el_educador_vota_el_bloque_ademas_de_su_matrimonio(db_session):
     assert voto.unidad_electoral_id == bloque.id
 
 
-def test_educador_de_baja_deja_votar_al_jefe(db_session):
+@pytest.mark.parametrize("estado_educador", [EstadoPersona.ACTIVA, EstadoPersona.BAJA_NO_ML])
+def test_con_jefe_vota_el_jefe_aunque_haya_educador(db_session, estado_educador):
     db = db_session
     _votacion_abierta(db)
     _g, _jefe, bloque = _postulantes(db, 'POSTULANTES 2022 "B"', con_jefe=True)
-    _educador_gauto_borja(db, estado=EstadoPersona.BAJA_NO_ML)
+    _educador_gauto_borja(db, estado=estado_educador)
     db.commit()
 
     aplicar_votantes_de_bloque(db)

@@ -460,13 +460,18 @@ def test_importacion_contra_excel_real(db_session):
     )
     assert importacion.resumen["grupos"]["total"] == 93
 
-    # DEC-042: los bloques de postulantes los vota el educador o el jefe.
+    # DEC-042: los bloques de postulantes los vota el jefe o, sin jefe, el educador.
     por_estado = importacion.resumen["unidades_electorales"]["por_estado"]
     assert por_estado["HABILITADA"] == 296
     assert por_estado["PENDIENTE_DEFINICION_POSTULANTES"] == 1
     assert por_estado["BLOQUEADA_POR_INCIDENCIA"] == 7
-    bloque = _unidad(
+    # 2024 F tiene jefe: lo vota el jefe. 2024 C no tiene: lo vota el educador.
+    con_jefe = _unidad(
         db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, _grupo(db_session, "POSTULANTES 2024 F").id
     )
+    assert con_jefe.votante_matrimonio_id is None
+    bloque = _unidad(
+        db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, _grupo(db_session, "POSTULANTES 2024 C").id
+    )
     educadores = db_session.query(Persona).filter(Persona.matrimonio_id == bloque.votante_matrimonio_id)
-    assert {p.apellidos for p in educadores} == {"BLASSER", "MENDEZ"}
+    assert {p.apellidos for p in educadores} == {"FLORENTIN", "ALEGRE"}
