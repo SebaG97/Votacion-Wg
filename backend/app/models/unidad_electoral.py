@@ -30,3 +30,10 @@ class UnidadElectoral(TimestampMixin, Base):
     descripcion: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cantidad_personas_control: Mapped[int | None] = mapped_column(Integer, nullable=True)
     estado: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # DEC-042: solo para BLOQUE_NO_CONSAGRADO. Si esta cargado, el bloque lo
+    # vota este matrimonio (el educador de un grupo de postulantes, o el jefe
+    # de la parte consagrada de un grupo mixto) en lugar de los jefes del
+    # propio circulo.
+    votante_matrimonio_id: Mapped[int | None] = mapped_column(
+        ForeignKey("matrimonios.id"), nullable=True
+    )

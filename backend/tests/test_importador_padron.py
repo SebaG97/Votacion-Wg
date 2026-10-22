@@ -21,8 +21,8 @@ proposito los casos limite documentados en `docs/PADRON_ANALISIS.md`:
 - Un matrimonio consagrado donde ningun integrante tiene un celular valido
   (`Diaz Roberto` / `Diaz Insfran Sonia`): MATRIMONIO_SIN_CELULAR_DISPONIBLE
   bloquea la unidad electoral (DEC-017).
-- Un circulo de postulantes (`POSTULANTES B`) con jefe resuelto: debe generar
-  su bloque en estado PENDIENTE_DEFINICION_POSTULANTES (DEC-013, DEC-016).
+- Un circulo de postulantes (`POSTULANTES B`) con jefe resuelto: sin educador
+  registrado, su bloque queda HABILITADA y lo vota el jefe (DEC-042).
 
 El Excel real (`docs/Padron de ML con Jefes 2026.xlsx`) solo se usa en
 `test_importacion_contra_excel_real`, marcada `@pytest.mark.slow`.
@@ -255,12 +255,14 @@ def test_jefe_solo_en_listado_jefes_genera_incidencia_critica(db_session, excel_
     assert incidencia.persona_id is None
 
 
-def test_circulo_postulantes_queda_pendiente_de_definicion(db_session, excel_fixture):
+def test_circulo_postulantes_con_jefe_vota_por_el_bloque(db_session, excel_fixture):
+    """DEC-042: sin educador registrado, el bloque de postulantes lo vota su jefe."""
     ejecutar_importacion(db_session, excel_fixture)
 
     grupo_postulantes = _grupo(db_session, "POSTULANTES B")
     unidad = _unidad(db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, grupo_postulantes.id)
-    assert unidad.estado == EstadoUnidadElectoral.PENDIENTE_DEFINICION_POSTULANTES.value
+    assert unidad.estado == EstadoUnidadElectoral.HABILITADA.value
+    assert unidad.votante_matrimonio_id is None
 
 
 def test_fila_de_resumen_al_pie_no_genera_persona_ni_incidencia(db_session, excel_fixture):
@@ -288,11 +290,11 @@ def test_resumen_incluye_votos_maximos_por_tipo(db_session, excel_fixture):
     assert importacion.resumen is not None
     votos_maximos = importacion.resumen["votos_maximos"]
     # Matrimonio consagrado habilitado: solo Pereira/Fernandez (Diaz/Insfran queda
-    # bloqueado por DEC-017). Bloques habilitados: CIRCULO B y CIRCULO E; el de
-    # POSTULANTES B queda pendiente y no cuenta como voto maximo.
+    # bloqueado por DEC-017). Bloques habilitados: CIRCULO B, CIRCULO E y,
+    # desde DEC-042, POSTULANTES B (lo vota su jefe).
     assert votos_maximos["por_tipo"]["MATRIMONIO_CONSAGRADO"] == 1
-    assert votos_maximos["por_tipo"]["BLOQUE_NO_CONSAGRADO"] == 2
-    assert votos_maximos["total"] == 3
+    assert votos_maximos["por_tipo"]["BLOQUE_NO_CONSAGRADO"] == 3
+    assert votos_maximos["total"] == 4
 
 
 def test_reimportar_es_idempotente_mientras_la_votacion_esta_en_borrador(db_session, excel_fixture):
@@ -457,3 +459,14 @@ def test_importacion_contra_excel_real(db_session):
         db_session.query(Matrimonio).filter(Matrimonio.es_consagrado.is_(True)).count() == 260
     )
     assert importacion.resumen["grupos"]["total"] == 93
+
+    # DEC-042: los bloques de postulantes los vota el educador o el jefe.
+    por_estado = importacion.resumen["unidades_electorales"]["por_estado"]
+    assert por_estado["HABILITADA"] == 296
+    assert por_estado["PENDIENTE_DEFINICION_POSTULANTES"] == 1
+    assert por_estado["BLOQUEADA_POR_INCIDENCIA"] == 7
+    bloque = _unidad(
+        db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, _grupo(db_session, "POSTULANTES 2024 F").id
+    )
+    educadores = db_session.query(Persona).filter(Persona.matrimonio_id == bloque.votante_matrimonio_id)
+    assert {p.apellidos for p in educadores} == {"BLASSER", "MENDEZ"}

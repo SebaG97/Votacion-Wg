@@ -124,6 +124,11 @@ def _confirmar_persona_autorizada(
             matrimonio.integrante_1_id,
             matrimonio.integrante_2_id,
         }
+    elif unidad.votante_matrimonio_id is not None:
+        # DEC-042: el bloque lo vota el educador (o el jefe de la parte
+        # consagrada del grupo), no los jefes del circulo.
+        persona = db.get(Persona, emitido_por_persona_id)
+        autorizada = persona is not None and persona.matrimonio_id == unidad.votante_matrimonio_id
     else:
         persona = db.get(Persona, emitido_por_persona_id)
         autorizada = (

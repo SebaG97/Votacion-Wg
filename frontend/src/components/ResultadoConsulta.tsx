@@ -11,15 +11,15 @@ type ResultadoConsultaProps = {
 export function ResultadoConsulta({ consulta, onElegirUnidad }: ResultadoConsultaProps) {
   if (consulta.unidades.length === 0 && consulta.personas.length > 0) {
     // La persona esta en el padron pero no tiene ningun voto a su cargo: en los
-    // circulos no consagrados vota solo el jefe, por el bloque.
+    // circulos no consagrados vota solo el jefe (o el educador), por el bloque.
     return (
       <section className="panel">
         <p className="eyebrow">Resultado de la consulta</p>
         <h1>No tenés un voto a tu cargo</h1>
         <p>
           Figurás en el padrón, pero tu voto lo emite otra persona: en los círculos no consagrados
-          vota el jefe de círculo por todo el bloque. Si creés que es un error, consultá con el
-          administrador.
+          vota por todo el bloque el jefe de círculo o, en los de postulantes, el educador. Si creés
+          que es un error, consultá con el administrador.
         </p>
       </section>
     );
@@ -49,12 +49,12 @@ export function ResultadoConsulta({ consulta, onElegirUnidad }: ResultadoConsult
                 className="unidad-card disponible"
                 onClick={() => onElegirUnidad(unidad)}
               >
-                <span>{etiquetaUnidad(unidad.tipo)}</span>
+                <span>{etiquetaUnidad(unidad.tipo, unidad.descripcion)}</span>
                 <ArrowRight size={18} />
               </button>
             ) : (
               <div className="unidad-card no-disponible">
-                <span>{etiquetaUnidad(unidad.tipo)}</span>
+                <span>{etiquetaUnidad(unidad.tipo, unidad.descripcion)}</span>
                 <p className="motivo">{traducirMotivoNoDisponible(unidad.motivo_no_disponible)}</p>
               </div>
             )}

@@ -35,7 +35,7 @@ from app.models.enums import EstadoPersona, SeveridadIncidencia, TipoIncidenciaP
 from app.services.padron.normalizacion import normalizar_celular, texto
 from app.models.enums import EstadoUnidadElectoral
 from app.services.habilitacion import incidencias_criticas_pendientes
-from app.services.padron.importador import _es_circulo_postulantes
+from app.services.padron.votantes_bloque import estado_bloque_sin_incidencias
 
 
 class IncidenciaNoEncontradaError(RuntimeError):
@@ -142,21 +142,12 @@ def reevaluar_bloqueo(db: Session, unidades: list[UnidadElectoral]) -> list[Unid
 def _estado_sin_incidencias(db: Session, unidad: UnidadElectoral) -> str:
     """El estado que el importador le habria dado a la unidad sin incidencias
     criticas: la incidencia tapa a postulantes y bajas, asi que al resolverla
-    un bloque de postulantes vuelve a PENDIENTE_DEFINICION_POSTULANTES y una
-    unidad sin integrantes activos a PENDIENTE_DEFINICION_BAJA, nunca a
-    HABILITADA."""
-    if unidad.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO:
-        personas = db.query(Persona).filter(Persona.matrimonio_id == unidad.referencia_id).all()
-    else:
-        grupo = db.get(Grupo, unidad.referencia_id)
-        if grupo is not None and _es_circulo_postulantes(grupo.nombre):
-            return EstadoUnidadElectoral.PENDIENTE_DEFINICION_POSTULANTES.value
-        personas = (
-            db.query(Persona)
-            .join(Matrimonio, Matrimonio.id == Persona.matrimonio_id)
-            .filter(Matrimonio.grupo_id == unidad.referencia_id, Matrimonio.es_consagrado.is_(False))
-            .all()
-        )
+    un bloque de postulantes sin educador ni jefe vuelve a
+    PENDIENTE_DEFINICION_POSTULANTES y una unidad sin integrantes activos a
+    PENDIENTE_DEFINICION_BAJA, nunca a HABILITADA."""
+    if unidad.tipo == TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO:
+        return estado_bloque_sin_incidencias(db, unidad)
+    personas = db.query(Persona).filter(Persona.matrimonio_id == unidad.referencia_id).all()
     if personas and all(p.estado != EstadoPersona.ACTIVA for p in personas):
         return EstadoUnidadElectoral.PENDIENTE_DEFINICION_BAJA.value
     return EstadoUnidadElectoral.HABILITADA.value

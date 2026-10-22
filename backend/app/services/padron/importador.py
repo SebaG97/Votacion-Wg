@@ -433,6 +433,10 @@ def _persistir(db: Session, resultado: ResultadoAnalisis, importacion: Importaci
     unidades = _crear_unidades_electorales(
         db, resultado, pares_matrimonio, grupos_por_clave, orm_personas_por_fila, incidencias_orm
     )
+    # Import local: votantes_bloque importa este modulo.
+    from app.services.padron.votantes_bloque import aplicar_votantes_de_bloque
+
+    aplicar_votantes_de_bloque(db)
 
     return _construir_resumen(
         resultado, orm_personas_por_fila, pares_matrimonio, grupos_por_clave, unidades, incidencias_orm

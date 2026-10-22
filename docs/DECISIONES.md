@@ -326,7 +326,7 @@ Decision: Para esta eleccion, las 8 unidades electorales sin ningun integrante a
 
 Consecuencias: De las 314 unidades electorales, 265 siguen `HABILITADA` y 16 `BLOQUEADA_POR_INCIDENCIA` (sin cambio). Las 8 unidades de `PENDIENTE_DEFINICION_BAJA` no suman votos habilitables en esta eleccion -- el total votable de 265 no cambia respecto de lo que ya se contaba como habilitado hoy. `frontend/src/lib/motivos.ts` (`traducirMotivoNoDisponible`) cambia el mensaje de `PENDIENTE_DEFINICION_POSTULANTES`/`PENDIENTE_DEFINICION_BAJA` de "Todavía no está habilitada para votar." a "Esta unidad no tiene voto habilitado en esta elección.", con su prueba actualizada en `motivos.test.ts`. No hace falta ningun cambio en `frontend-admin`: no existe un mensaje equivalente orientado al votante ahi, solo las etiquetas administrativas ("Pendiente baja", "Pendiente postulantes") de `VotacionDetailPage.tsx`, que son nombres de estado para el operador, no una promesa de habilitacion futura, y no dependen de la palabra "todavia".
 
-## DEC-028 - Circulos De Postulantes (DEC-013): Resuelta Por El Orquestador -- Las 25 Unidades No Votan Este Ciclo
+## DEC-028 - Circulos De Postulantes (DEC-013): Resuelta Por El Orquestador -- Las 25 Unidades No Votan Este Ciclo (Reemplazada Por DEC-042)
 
 Fecha: 2026-09-01
 
@@ -501,3 +501,17 @@ Decision:
 - El rate limit usa `DO-Connecting-IP` (la IP real que informa DigitalOcean) antes que `X-Forwarded-For`, cuyo primer valor lo puede falsear el cliente.
 
 Consecuencias: pruebas nuevas en `backend/tests/test_reglas_celular_y_desbloqueo.py`, `backend/tests/test_rate_limit.py` y `frontend/src/components/ResultadoConsulta.test.tsx`.
+
+## DEC-042 - Quien Vota Los Bloques De Postulantes: Educador O Jefe
+
+Fecha: 2026-10-22
+
+Contexto: el responsable del padron confirmo las reglas de los grupos no consagrados, y una de ellas contradice DEC-028, que habia resuelto por suposicion que los circulos de postulantes no votaban. Las reglas son: (1) un solo voto por grupo o agrupacion de no consagrados; (2) si todos los del grupo son postulantes y tienen educador, vota el educador; (3) si el grupo tiene una parte de consagrados y otra de postulantes, cada consagrado vota por su matrimonio y el jefe vota por los postulantes. El educador figura en la fila separadora al inicio de cada lista de grupo del Excel; es un matrimonio consagrado de otro circulo y su celular esta en ese circulo. Si el educador esta de baja o no figura, vota el jefe del grupo si existe (confirmado por Sebad).
+
+Decision:
+- `unidades_electorales.votante_matrimonio_id` guarda quien vota un bloque cuando no son los jefes del propio circulo: el educador, o el jefe de la parte consagrada de un grupo mixto, que en el padron quedo como un circulo aparte (".../64", "CIRCULO 58").
+- `app/services/padron/votantes_bloque.py` tiene la correspondencia grupo -> educador (por los apellidos de los dos integrantes) y grupo mixto -> circulo del jefe, armada a mano desde el Excel, y la aplica al final de cada importacion y en la migracion `d4e5f6a7b8c9`. Al asignar votante se resuelven las incidencias de "circulo sin jefe" de ese grupo (`resuelto_por = DEC-042`).
+- Un bloque de postulantes queda `HABILITADA` si tiene educador activo o jefe activo; si no, sigue `PENDIENTE_DEFINICION_POSTULANTES`. DEC-028 queda reemplazada.
+- La consulta por celular le muestra al educador un boton por cada bloque que vota, con el nombre del circulo, ademas de su propio voto de consagrado. El jefe postulante de un grupo con educador ve "No tenes un voto a tu cargo".
+
+Consecuencias: sobre el padron real, las unidades `HABILITADA` pasan de 265 a 296. Quedan sin votar POSTULANTES 2026 D (educador de baja y sin jefe en el padron), POSTULANTES 2021 "E" (jefes de baja) y dos bloques cuyos postulantes estan todos de baja. Pruebas: `backend/tests/test_votantes_bloque.py` y la prueba contra el Excel real (`-m slow`).

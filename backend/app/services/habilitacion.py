@@ -118,7 +118,9 @@ def unidades_candidatas(db: Session, personas: list[Persona]) -> dict[int, Unida
     Dos conyuges que comparten celular (DEC-008) resuelven al mismo matrimonio
     y por lo tanto a la misma unidad: el dict por id evita ofrecerla dos veces.
     Un jefe consagrado con doble rol (DEC-014) aporta dos unidades distintas
-    (su matrimonio y el bloque que lidera), que quedan separadas.
+    (su matrimonio y el bloque que lidera), que quedan separadas. Un bloque con
+    `votante_matrimonio_id` (DEC-042) lo ve ese matrimonio y no los jefes del
+    circulo.
 
     Publica (sin guion bajo) porque la Mision 06 (`app/services/voto.py`) la
     reusa para confirmar que el celular declarado en el voto efectivamente
@@ -138,12 +140,25 @@ def unidades_candidatas(db: Session, personas: list[Persona]) -> dict[int, Unida
             if unidad is not None:
                 unidades[unidad.id] = unidad
 
+            # DEC-042: los bloques que vota su matrimonio como educador o como
+            # jefe de la parte consagrada de un grupo mixto.
+            for unidad in (
+                db.query(UnidadElectoral)
+                .filter(
+                    UnidadElectoral.tipo == TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO,
+                    UnidadElectoral.votante_matrimonio_id == persona.matrimonio_id,
+                )
+                .all()
+            ):
+                unidades[unidad.id] = unidad
+
         if persona.es_jefe_grupo and persona.grupo_id is not None:
             unidad = (
                 db.query(UnidadElectoral)
                 .filter(
                     UnidadElectoral.tipo == TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO,
                     UnidadElectoral.referencia_id == persona.grupo_id,
+                    UnidadElectoral.votante_matrimonio_id.is_(None),
                 )
                 .one_or_none()
             )

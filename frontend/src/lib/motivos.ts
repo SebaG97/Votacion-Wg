@@ -24,10 +24,14 @@ export function traducirMotivoNoDisponible(motivo: string | null): string {
 /**
  * Etiqueta del voto por tipo de unidad electoral (criterio de aceptacion de
  * la Mision 09): el doble rol de jefe consagrado se muestra como dos
- * acciones separadas y claramente identificadas, nunca combinadas.
+ * acciones separadas y claramente identificadas, nunca combinadas. Desde
+ * DEC-042 un educador puede votar varios bloques, asi que el del bloque
+ * nombra al circulo cuando la descripcion lo trae.
  */
-export function etiquetaUnidad(tipo: TipoUnidadElectoral): string {
-  return tipo === "MATRIMONIO_CONSAGRADO"
-    ? "Votar por tu matrimonio consagrado"
-    : "Votar por el bloque de tu círculo";
+export function etiquetaUnidad(tipo: TipoUnidadElectoral, descripcion?: string | null): string {
+  if (tipo === "MATRIMONIO_CONSAGRADO") {
+    return "Votar por tu matrimonio consagrado";
+  }
+  const circulo = descripcion?.match(/^Bloque no consagrado de (.+)$/)?.[1]?.trim();
+  return circulo ? `Votar por el bloque de ${circulo}` : "Votar por el bloque de tu círculo";
 }

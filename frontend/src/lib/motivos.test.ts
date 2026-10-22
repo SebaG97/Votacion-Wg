@@ -49,4 +49,10 @@ describe("etiquetaUnidad", () => {
   it("etiqueta el bloque no consagrado", () => {
     expect(etiquetaUnidad("BLOQUE_NO_CONSAGRADO")).toBe("Votar por el bloque de tu círculo");
   });
+
+  it("nombra el circulo del bloque cuando viene en la descripcion (DEC-042)", () => {
+    expect(
+      etiquetaUnidad("BLOQUE_NO_CONSAGRADO", 'Bloque no consagrado de POSTULANTES 2024  "F"'),
+    ).toBe('Votar por el bloque de POSTULANTES 2024  "F"');
+  });
 });
