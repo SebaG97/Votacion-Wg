@@ -475,3 +475,13 @@ def test_importacion_contra_excel_real(db_session):
     )
     educadores = db_session.query(Persona).filter(Persona.matrimonio_id == bloque.votante_matrimonio_id)
     assert {p.apellidos for p in educadores} == {"FLORENTIN", "ALEGRE"}
+
+
+@pytest.mark.parametrize(
+    ("observacion", "es_baja"),
+    [("se fusionaron con el C60", False), ("fallecio", True), ("ya no siguen", True), (None, False), ("", False)],
+)
+def test_solo_las_observaciones_de_baja_dan_de_baja(observacion, es_baja):
+    from app.services.padron.importador import es_observacion_de_baja
+
+    assert es_observacion_de_baja(observacion) is es_baja

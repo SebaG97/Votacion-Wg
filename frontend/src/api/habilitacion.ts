@@ -27,6 +27,7 @@ export type UnidadElectoralDisponible = {
 export type HabilitacionConsultaResponse = {
   celular_normalizado: string | null;
   habilitado: boolean;
+  de_baja?: boolean;
   personas: PersonaConsultada[];
   unidades: UnidadElectoralDisponible[];
 };

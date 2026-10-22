@@ -76,10 +76,20 @@ def _es_circulo_postulantes(nombre_circulo: str | None) -> bool:
     return "POSTULANTE" in clave
 
 
+# Observaciones que no son una baja: "se fusionaron con el C60" solo dice que
+# el circulo se unio a otro, y esas personas siguen votando (DEC-043).
+OBSERVACIONES_QUE_NO_SON_BAJA = ("FUSION",)
+
+
+def es_observacion_de_baja(observacion: str | None) -> bool:
+    clave = clave_texto(observacion) or ""
+    return bool(clave) and not any(marca in clave for marca in OBSERVACIONES_QUE_NO_SON_BAJA)
+
+
 def _resolver_estado_persona(p: PersonaExcel) -> tuple[EstadoPersona, str | None]:
     if p.marca_no_ml:
         return EstadoPersona.BAJA_NO_ML, p.observacion
-    if p.observacion:
+    if es_observacion_de_baja(p.observacion):
         return EstadoPersona.BAJA_OBSERVACION, p.observacion
     return EstadoPersona.ACTIVA, None
 

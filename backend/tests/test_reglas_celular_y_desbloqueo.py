@@ -225,8 +225,10 @@ def test_persona_de_baja_no_habilita_nada_con_su_celular(db_session):
     _unidad_matrimonio(db, _matrimonio(db, baja, activa))
     db.commit()
 
-    assert consultar_habilitacion(db, "0984444444").habilitado is False
+    de_baja = consultar_habilitacion(db, "0984444444")
+    assert de_baja.habilitado is False and de_baja.de_baja is True
     assert consultar_habilitacion(db, "0985555555").habilitado is True
+    assert consultar_habilitacion(db, "0989999999").de_baja is False
 
 
 def test_celular_compartido_con_conyuge_de_baja_solo_ofrece_al_activo(db_session):

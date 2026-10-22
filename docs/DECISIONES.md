@@ -517,3 +517,13 @@ Decision:
 - La consulta por celular le muestra al educador un boton por cada bloque que vota, con el nombre del circulo, ademas de su propio voto de consagrado. Los demas integrantes del grupo ven "No tenes un voto a tu cargo".
 
 Consecuencias: sobre el padron real, las unidades `HABILITADA` pasan de 265 a 296. Con la aclaracion, 14 bloques pasan del educador al jefe y el total no cambia; el educador vota solo 2024 "C" y 2026 A, B y C. Con los jefes nuevos de 2021 "E" y los Vera Martinez reactivados son 299. Quedan sin votar los bloques de CIRCULO 2019 "A" y POSTULANTE 2019 "C", con todos sus postulantes de baja; confirmado por el responsable: en 2019 "C" votan solo los dos matrimonios consagrados del "/C60". Pruebas: `backend/tests/test_votantes_bloque.py` y la prueba contra el Excel real (`-m slow`).
+
+## DEC-043 - Una Observacion De Fusion No Es Una Baja
+
+Fecha: 2026-10-22
+
+Contexto: el importador tomaba cualquier texto en la columna de observacion como baja (`BAJA_OBSERVACION`), y desde DEC-040 las personas de baja no votan. Tres personas tenian la observacion "se fusionaron con el C60" (Aveiro y Baez de Circulo 2020 "D", Bernal de 2019 "C"/C60), que solo dice que el circulo se unio a otro. Sebad confirmo que Ana Lucia Aveiro tiene que votar.
+
+Decision: una observacion que menciona una fusion no da de baja (`OBSERVACIONES_QUE_NO_SON_BAJA` en el importador). La migracion `b8c9d0e1f2a3` devuelve a `ACTIVA` a quienes ya estaban cargados con esa observacion y recalcula sus unidades. Ademas, la consulta por celular de una persona de baja muestra "Figuras de baja en el padron" en lugar de "no esta en el padron".
+
+Consecuencias: Ana Lucia Aveiro vuelve a poder votar el bloque de Circulo 2020 "D" junto con su esposo; el total de unidades habilitadas no cambia.

@@ -229,8 +229,14 @@ def consultar_habilitacion(db: Session, celular: str) -> HabilitacionConsultaRes
         .all()
     )
     if not personas:
+        de_baja = (
+            db.query(Persona)
+            .filter(Persona.celular == celular_normalizado, Persona.estado != EstadoPersona.ACTIVA)
+            .count()
+            > 0
+        )
         return HabilitacionConsultaResponse(
-            celular_normalizado=celular_normalizado, habilitado=False
+            celular_normalizado=celular_normalizado, habilitado=False, de_baja=de_baja
         )
 
     candidatas = unidades_candidatas(db, personas)

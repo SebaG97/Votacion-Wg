@@ -55,5 +55,7 @@ class UnidadElectoralDisponible(BaseModel):
 class HabilitacionConsultaResponse(BaseModel):
     celular_normalizado: str | None
     habilitado: bool
+    # El celular esta en el padron, pero solo de personas de baja (DEC-040).
+    de_baja: bool = False
     personas: list[PersonaConsultada] = []
     unidades: list[UnidadElectoralDisponible] = []

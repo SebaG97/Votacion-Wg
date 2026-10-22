@@ -48,6 +48,20 @@ describe("ResultadoConsulta", () => {
     expect(screen.queryByText(/no está en el padrón/i)).not.toBeInTheDocument();
   });
 
+  it("avisa que figura de baja en lugar de decir que no esta en el padron", () => {
+    render(
+      <ResultadoConsulta
+        consulta={consultaBase({ de_baja: true })}
+        onElegirUnidad={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/figurás de baja en el padrón/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no está en el padrón/i)).not.toBeInTheDocument();
+  });
+
   it("muestra el motivo traducido de una unidad bloqueada, sin el codigo tecnico crudo", () => {
     const consulta = consultaBase({
       unidades: [

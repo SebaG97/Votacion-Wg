@@ -25,12 +25,25 @@ export function ResultadoConsulta({ consulta, onElegirUnidad }: ResultadoConsult
     );
   }
 
+  if (consulta.unidades.length === 0 && consulta.de_baja) {
+    return (
+      <section className="panel">
+        <p className="eyebrow">Resultado de la consulta</p>
+        <h1>Figurás de baja en el padrón</h1>
+        <p>
+          Este celular corresponde a una persona que figura de baja, por eso no puede votar. Si
+          creés que es un error, consultá con el administrador de tu círculo.
+        </p>
+      </section>
+    );
+  }
+
   if (consulta.unidades.length === 0) {
     return (
       <section className="panel">
         <p className="eyebrow">Resultado de la consulta</p>
         <h1>Este celular no está en el padrón</h1>
-        <p>Verificá el número o consultá con el administrador de tu círculo.</p>
+        <p>Verificá el número o consultá con el jefe de tu círculo.</p>
       </section>
     );
   }
