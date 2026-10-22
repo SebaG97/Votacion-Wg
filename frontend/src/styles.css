@@ -659,6 +659,9 @@ dd {
   display: block;
   width: 100%;
   height: auto;
+  max-height: 340px;
+  object-fit: cover;
+  object-position: center 35%;
   margin-bottom: 20px;
   border-radius: var(--radius-xl);
   border: 3px solid #ffffff;
