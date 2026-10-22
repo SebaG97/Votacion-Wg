@@ -404,8 +404,11 @@ def listar_padron(
     if estado_persona is not None:
         query = query.filter(Persona.estado == estado_persona)
     if nombre:
-        patron = f"%{nombre}%"
-        query = query.filter(or_(Persona.nombres.ilike(patron), Persona.apellidos.ilike(patron)))
+        # Cada palabra puede estar en el nombre o en el apellido, asi que
+        # "Juan Carlos Vera" encuentra a VERA, JUAN CARLOS.
+        for palabra in nombre.split():
+            patron = f"%{palabra}%"
+            query = query.filter(or_(Persona.nombres.ilike(patron), Persona.apellidos.ilike(patron)))
     if documento:
         query = query.filter(Persona.documento.ilike(f"%{documento}%"))
     if celular:

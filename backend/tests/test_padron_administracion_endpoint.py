@@ -269,6 +269,12 @@ def test_get_padron_personas_filtra_por_nombre(migrated_db_url, tmp_path, monkey
         assert body["total"] == 1
         assert body["items"][0]["nombres"] == "Juan"
         assert body["items"][0]["apellidos"] == "Pereira"
+
+        # Nombre y apellido juntos, en cualquier orden.
+        response = client.get(
+            "/api/v1/padron/personas", params={"nombre": "Juan Pereira"}, headers=_headers()
+        )
+        assert [item["apellidos"] for item in response.json()["items"]] == ["Pereira"]
     finally:
         _liberar(engine)
 

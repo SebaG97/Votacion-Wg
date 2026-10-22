@@ -10,11 +10,15 @@ describe("traducirMotivoNoDisponible", () => {
   });
 
   it("traduce CELULAR_DUPLICADO a lenguaje claro (DEC-039)", () => {
-    expect(traducirMotivoNoDisponible("CELULAR_DUPLICADO")).toContain("más de un matrimonio");
+    expect(traducirMotivoNoDisponible("CELULAR_DUPLICADO")).toContain(
+      "más de un matrimonio",
+    );
   });
 
   it("traduce YA_VOTADO a lenguaje claro", () => {
-    expect(traducirMotivoNoDisponible("YA_VOTADO")).toBe("Esta unidad ya emitió su voto.");
+    expect(traducirMotivoNoDisponible("YA_VOTADO")).toBe(
+      "Esta unidad ya emitió su voto.",
+    );
   });
 
   it("traduce PENDIENTE_DEFINICION_POSTULANTES y PENDIENTE_DEFINICION_BAJA al mismo mensaje", () => {
@@ -43,16 +47,23 @@ describe("traducirMotivoNoDisponible", () => {
 
 describe("etiquetaUnidad", () => {
   it("etiqueta el matrimonio consagrado", () => {
-    expect(etiquetaUnidad("MATRIMONIO_CONSAGRADO")).toBe("Votar por tu matrimonio consagrado");
+    expect(etiquetaUnidad("MATRIMONIO_CONSAGRADO")).toBe(
+      "Votar por tu matrimonio",
+    );
   });
 
   it("etiqueta el bloque no consagrado", () => {
-    expect(etiquetaUnidad("BLOQUE_NO_CONSAGRADO")).toBe("Votar por el bloque de tu círculo");
+    expect(etiquetaUnidad("BLOQUE_NO_CONSAGRADO")).toBe(
+      "Votar por el bloque de tu círculo",
+    );
   });
 
   it("nombra el circulo del bloque cuando viene en la descripcion (DEC-042)", () => {
     expect(
-      etiquetaUnidad("BLOQUE_NO_CONSAGRADO", 'Bloque no consagrado de POSTULANTES 2024  "F"'),
+      etiquetaUnidad(
+        "BLOQUE_NO_CONSAGRADO",
+        'Bloque no consagrado de POSTULANTES 2024  "F"',
+      ),
     ).toBe('Votar por el bloque de POSTULANTES 2024  "F"');
   });
 });

@@ -51,14 +51,16 @@ describe("VotacionPage", () => {
     await user.click(screen.getByRole("button", { name: /consultar/i }));
 
     const votarUnidad = await screen.findByRole("button", {
-      name: /votar por tu matrimonio consagrado/i,
+      name: /Votar por tu matrimonio/i,
     });
     await user.click(votarUnidad);
 
     await user.click(await screen.findByText("Lista A"));
     await user.click(screen.getByRole("button", { name: /confirmar voto/i }));
 
-    expect(await screen.findByText(/tu voto se registró correctamente/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/tu voto se registró correctamente/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(votacionApi.registrarVoto).toHaveBeenCalledWith(1, {
       celular_consultado: "0981000001",
@@ -94,7 +96,11 @@ describe("VotacionPage", () => {
     });
     const { ApiError } = await import("../api/client");
     vi.mocked(votacionApi.registrarVoto).mockRejectedValue(
-      new ApiError("La API respondio con error.", 409, "Ya existe un voto registrado."),
+      new ApiError(
+        "La API respondio con error.",
+        409,
+        "Ya existe un voto registrado.",
+      ),
     );
 
     render(<VotacionPage />);
@@ -102,11 +108,13 @@ describe("VotacionPage", () => {
     await user.type(screen.getByRole("textbox"), "0981000001");
     await user.click(screen.getByRole("button", { name: /consultar/i }));
     await user.click(
-      await screen.findByRole("button", { name: /votar por tu matrimonio consagrado/i }),
+      await screen.findByRole("button", { name: /Votar por tu matrimonio/i }),
     );
     await user.click(await screen.findByText("Lista A"));
     await user.click(screen.getByRole("button", { name: /confirmar voto/i }));
 
-    expect(await screen.findByText(/tu voto ya fue registrado/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/tu voto ya fue registrado/i),
+    ).toBeInTheDocument();
   });
 });

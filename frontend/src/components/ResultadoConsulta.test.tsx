@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { HabilitacionConsultaResponse } from "../api/habilitacion";
 import { ResultadoConsulta } from "./ResultadoConsulta";
 
-function consultaBase(overrides: Partial<HabilitacionConsultaResponse>): HabilitacionConsultaResponse {
+function consultaBase(
+  overrides: Partial<HabilitacionConsultaResponse>,
+): HabilitacionConsultaResponse {
   return {
     celular_normalizado: "0981000001",
     habilitado: false,
@@ -18,10 +20,15 @@ function consultaBase(overrides: Partial<HabilitacionConsultaResponse>): Habilit
 describe("ResultadoConsulta", () => {
   it("muestra que el celular no esta en el padron cuando no hay ninguna unidad", () => {
     render(
-      <ResultadoConsulta consulta={consultaBase({ unidades: [] })} onElegirUnidad={vi.fn()} />,
+      <ResultadoConsulta
+        consulta={consultaBase({ unidades: [] })}
+        onElegirUnidad={vi.fn()}
+      />,
     );
 
-    expect(screen.getByText(/este celular no está en el padrón/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/este celular no está en el padrón/i),
+    ).toBeInTheDocument();
   });
 
   it("distingue a quien esta en el padron pero no tiene un voto a su cargo", () => {
@@ -35,7 +42,9 @@ describe("ResultadoConsulta", () => {
       />,
     );
 
-    expect(screen.getByText(/no tenés un voto a tu cargo/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/no tenés un voto a tu cargo/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/no está en el padrón/i)).not.toBeInTheDocument();
   });
 
@@ -57,9 +66,13 @@ describe("ResultadoConsulta", () => {
     render(<ResultadoConsulta consulta={consulta} onElegirUnidad={vi.fn()} />);
 
     expect(
-      screen.getByText(/hay un problema con tus datos, contactá al administrador/i),
+      screen.getByText(
+        /hay un problema con tus datos, contactá al administrador/i,
+      ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("BLOQUEADA_POR_INCIDENCIA")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("BLOQUEADA_POR_INCIDENCIA"),
+    ).not.toBeInTheDocument();
   });
 
   it("muestra dos opciones separadas para el doble rol de jefe consagrado", async () => {
@@ -89,10 +102,16 @@ describe("ResultadoConsulta", () => {
       ],
     });
 
-    render(<ResultadoConsulta consulta={consulta} onElegirUnidad={onElegirUnidad} />);
+    render(
+      <ResultadoConsulta consulta={consulta} onElegirUnidad={onElegirUnidad} />,
+    );
 
-    const matrimonio = screen.getByRole("button", { name: /votar por tu matrimonio consagrado/i });
-    const bloque = screen.getByRole("button", { name: /votar por el bloque de tu círculo/i });
+    const matrimonio = screen.getByRole("button", {
+      name: /Votar por tu matrimonio/i,
+    });
+    const bloque = screen.getByRole("button", {
+      name: /votar por el bloque de tu círculo/i,
+    });
     expect(matrimonio).toBeInTheDocument();
     expect(bloque).toBeInTheDocument();
 
