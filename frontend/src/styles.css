@@ -657,12 +657,9 @@ dd {
 
 .encabezado-ilustracion {
   display: block;
-  width: 100%;
+  width: min(420px, 100%);
   height: auto;
-  max-height: 340px;
-  object-fit: cover;
-  object-position: center 35%;
-  margin-bottom: 20px;
+  margin: 0 auto 20px;
   border-radius: var(--radius-xl);
   border: 3px solid #ffffff;
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-accent-400);
@@ -684,6 +681,7 @@ dd {
   font-weight: 700;
   line-height: 1.1;
   color: var(--color-primary-800);
+  text-wrap: balance;
 }
 
 .encabezado-periodo {
