@@ -462,9 +462,9 @@ def test_importacion_contra_excel_real(db_session):
 
     # DEC-042: los bloques de postulantes los vota el jefe o, sin jefe, el educador.
     por_estado = importacion.resumen["unidades_electorales"]["por_estado"]
-    assert por_estado["HABILITADA"] == 296
-    assert por_estado["PENDIENTE_DEFINICION_POSTULANTES"] == 1
-    assert por_estado["BLOQUEADA_POR_INCIDENCIA"] == 7
+    assert por_estado["HABILITADA"] == 299
+    assert por_estado.get("PENDIENTE_DEFINICION_POSTULANTES", 0) == 0
+    assert por_estado["BLOQUEADA_POR_INCIDENCIA"] == 6
     # 2024 F tiene jefe: lo vota el jefe. 2024 C no tiene: lo vota el educador.
     con_jefe = _unidad(
         db_session, TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO, _grupo(db_session, "POSTULANTES 2024 F").id

@@ -148,3 +148,53 @@ def test_grupo_mixto_lo_vota_el_jefe_de_la_parte_consagrada(db_session):
     assert db.query(IncidenciaPadron).one().resuelto_por == "DEC-042"
     unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, "0981000004").unidades}
     assert bloque.id in unidades
+
+
+def test_jefe_designado_vota_cuando_los_jefes_del_excel_estan_de_baja(db_session):
+    db = db_session
+    _votacion_abierta(db)
+    grupo = _grupo(db, 'POSTULANTES 2021 "E"')
+    j1 = _persona(db, "Laura", "MACIEL", None, grupo_id=grupo.id, es_jefe_grupo=True, estado=EstadoPersona.BAJA_NO_ML)
+    j2 = _persona(db, "Francisco", "GONZALEZ", None, grupo_id=grupo.id, es_jefe_grupo=True, estado=EstadoPersona.BAJA_NO_ML)
+    _matrimonio(db, j1, j2, grupo_id=grupo.id).es_consagrado = False
+    p1 = _persona(db, "Pablo", "Postulante", "0991000001", grupo_id=grupo.id)
+    p2 = _persona(db, "Paula", "Postulante", None, grupo_id=grupo.id)
+    _matrimonio(db, p1, p2, grupo_id=grupo.id).es_consagrado = False
+    bloque = _unidad_bloque(db, grupo, estado=EstadoUnidadElectoral.PENDIENTE_DEFINICION_POSTULANTES)
+    consagrados = _grupo(db, 'POSTULANTES 2021 "E"/66')
+    a1 = _persona(db, "Edgar", "AYALA", "0981000005", grupo_id=consagrados.id)
+    a2 = _persona(db, "Teresa", "LOPEZ", None, grupo_id=consagrados.id)
+    matrimonio = _matrimonio(db, a1, a2, grupo_id=consagrados.id)
+    _unidad_matrimonio(db, matrimonio)
+    db.commit()
+
+    aplicar_votantes_de_bloque(db)
+    db.commit()
+
+    assert bloque.votante_matrimonio_id == matrimonio.id
+    assert bloque.estado == EstadoUnidadElectoral.HABILITADA.value
+    unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, "0981000005").unidades}
+    assert bloque.id in unidades and len(unidades) == 2
+
+
+def test_matrimonio_reactivado_vota_como_consagrado_y_educador(db_session):
+    db = db_session
+    _votacion_abierta(db)
+    _g, _p, bloque = _postulantes(db, "POSTULANTES 2026 D", con_jefe=False)
+    otro = _grupo(db, "CIRCULO 2 - LUQUE")
+    e1 = _persona(db, "Juan Carlos", "VERA", "0981000006", grupo_id=otro.id, estado=EstadoPersona.BAJA_NO_ML)
+    e2 = _persona(db, "Cinthia", "MARTINEZ", None, grupo_id=otro.id, estado=EstadoPersona.BAJA_NO_ML)
+    matrimonio = _matrimonio(db, e1, e2, grupo_id=otro.id)
+    propia = _unidad_matrimonio(db, matrimonio)
+    propia.estado = EstadoUnidadElectoral.PENDIENTE_DEFINICION_BAJA.value
+    db.commit()
+
+    aplicar_votantes_de_bloque(db)
+    db.commit()
+
+    assert e1.estado == EstadoPersona.ACTIVA and e2.estado == EstadoPersona.ACTIVA
+    assert propia.estado == EstadoUnidadElectoral.HABILITADA.value
+    assert bloque.votante_matrimonio_id == matrimonio.id
+    assert bloque.estado == EstadoUnidadElectoral.HABILITADA.value
+    unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, "0981000006").unidades}
+    assert unidades == {propia.id, bloque.id}

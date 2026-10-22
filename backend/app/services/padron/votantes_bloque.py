@@ -13,7 +13,10 @@ Reglas confirmadas por el responsable del padron (22/10/2026):
    postulantes. En el padron esa parte consagrada quedo como un circulo
    aparte (".../64", "CIRCULO 58", ...), y a veces el jefe esta ahi.
 
-Sin jefe activo ni educador activo, el bloque no vota.
+Si el jefe que figura en el Excel ya no esta, el responsable puede informar
+uno nuevo (`JEFES_DESIGNADOS`), y reactivar un matrimonio que el Excel trae
+de baja (`MATRIMONIOS_REACTIVADOS`). Sin jefe activo ni educador activo, el bloque
+no vota.
 
 La fila separadora del Excel trae el educador como texto libre ("Betty y
 Gilberto Gauto"), asi que la correspondencia con el padron se fijo a mano,
@@ -75,6 +78,20 @@ JEFE_EN_OTRO_CIRCULO: dict[str, str] = {
     "POSTULANTES 2021 D": "POSTULANTES 2021 D /65",
 }
 
+# Jefes nuevos que el Excel no trae, informados por el responsable del padron
+# (22/10): clave del bloque -> apellidos del matrimonio. Votan aunque esten en
+# otro circulo, como el jefe de un grupo mixto.
+JEFES_DESIGNADOS: dict[str, tuple[str, str]] = {
+    "POSTULANTES 2021 E": ("AYALA", "LOPEZ"),
+}
+
+# Matrimonios que el Excel marca de baja pero el responsable del padron
+# confirmo como habilitados (22/10): votan como consagrados y, si son
+# educadores, por su grupo.
+MATRIMONIOS_REACTIVADOS: list[tuple[str, str]] = [
+    ("VERA", "MARTINEZ"),  # educadores de POSTULANTES 2026 D
+]
+
 # Incidencias que solo dicen "este circulo no tiene jefe": dejan de bloquear
 # cuando el bloque ya tiene quien lo vote.
 _INCIDENCIAS_DE_JEFATURA = {
@@ -132,6 +149,10 @@ def _votante_asignado(db: Session, grupo: Grupo) -> int | None:
     if _tiene_jefe_activo(db, grupo.id):
         return None
     clave = clave_circulo(grupo.nombre)
+    if clave in JEFES_DESIGNADOS:
+        jefe = _matrimonio_por_apellidos(db, JEFES_DESIGNADOS[clave])
+        if jefe is not None and _tiene_integrante_activo(db, jefe.id):
+            return jefe.id
     if clave in EDUCADORES:
         educador = _matrimonio_por_apellidos(db, EDUCADORES[clave])
         if educador is not None and _tiene_integrante_activo(db, educador.id):
@@ -183,6 +204,32 @@ def estado_bloque_sin_incidencias(db: Session, unidad: UnidadElectoral) -> str:
     return EstadoUnidadElectoral.HABILITADA.value
 
 
+def _reactivar_matrimonios(db: Session, incidencias_criticas_pendientes) -> None:
+    for apellidos in MATRIMONIOS_REACTIVADOS:
+        matrimonio = _matrimonio_por_apellidos(db, apellidos)
+        if matrimonio is None:
+            continue
+        for persona in db.query(Persona).filter(Persona.matrimonio_id == matrimonio.id):
+            persona.estado = EstadoPersona.ACTIVA
+            persona.observacion_baja = None
+        db.flush()
+        unidad = (
+            db.query(UnidadElectoral)
+            .filter(
+                UnidadElectoral.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO,
+                UnidadElectoral.referencia_id == matrimonio.id,
+            )
+            .one_or_none()
+        )
+        if unidad is not None:
+            unidad.estado = (
+                EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value
+                if incidencias_criticas_pendientes(db, unidad)
+                else EstadoUnidadElectoral.HABILITADA.value
+            )
+    db.flush()
+
+
 def aplicar_votantes_de_bloque(db: Session) -> None:
     """Asigna el votante de cada bloque segun las reglas de arriba y recalcula
     su estado. Corre al final de cada importacion y en la migracion de DEC-042.
@@ -191,6 +238,7 @@ def aplicar_votantes_de_bloque(db: Session) -> None:
     from app.services.habilitacion import incidencias_criticas_pendientes
 
     ahora = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    _reactivar_matrimonios(db, incidencias_criticas_pendientes)
     bloques = (
         db.query(UnidadElectoral)
         .filter(UnidadElectoral.tipo == TipoUnidadElectoral.BLOQUE_NO_CONSAGRADO)
