@@ -456,7 +456,7 @@ def test_importacion_contra_excel_real(db_session):
     assert db_session.query(Matrimonio).count() == 571
     assert db_session.query(Grupo).count() == 93
     assert (
-        db_session.query(Matrimonio).filter(Matrimonio.es_consagrado.is_(True)).count() == 260
+        db_session.query(Matrimonio).filter(Matrimonio.es_consagrado.is_(True)).count() == 261
     )
     assert importacion.resumen["grupos"]["total"] == 93
 

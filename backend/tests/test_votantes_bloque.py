@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import IncidenciaPadron, OpcionVoto
+from app.models import IncidenciaPadron, OpcionVoto, UnidadElectoral
 from app.models.enums import (
     EstadoPersona,
     EstadoUnidadElectoral,
     SeveridadIncidencia,
     TipoIncidenciaPadron,
+    TipoUnidadElectoral,
 )
 from app.services.habilitacion import consultar_habilitacion
 from app.services.padron.votantes_bloque import aplicar_votantes_de_bloque
@@ -198,3 +199,42 @@ def test_matrimonio_reactivado_vota_como_consagrado_y_educador(db_session):
     assert bloque.estado == EstadoUnidadElectoral.HABILITADA.value
     unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, "0981000006").unidades}
     assert unidades == {propia.id, bloque.id}
+
+
+def test_matrimonio_reactivado_sin_marca_de_consagrado_recibe_su_unidad(db_session):
+    db = db_session
+    _votacion_abierta(db)
+    _g, _p, bloque = _postulantes(db, "POSTULANTES 2023 F", con_jefe=False)
+    otro = _grupo(db, "CIRCULO  46")
+    e1 = _persona(db, "Darwin Raul", "MORALES", "0961601236", grupo_id=otro.id, estado=EstadoPersona.BAJA_NO_ML)
+    e2 = _persona(db, "Lucia", "HELMAN", "0961528076", grupo_id=otro.id, estado=EstadoPersona.BAJA_NO_ML)
+    matrimonio = _matrimonio(db, e1, e2, grupo_id=otro.id)
+    matrimonio.es_consagrado = None
+    for persona in (e1, e2):
+        db.add(
+            IncidenciaPadron(
+                persona_id=persona.id,
+                tipo=TipoIncidenciaPadron.CONSAGRACION_SIN_DEFINIR,
+                severidad=SeveridadIncidencia.CRITICA,
+                descripcion="Sin marca en 'Consagrados' ni en 'sin consagracion'.",
+            )
+        )
+    db.commit()
+
+    aplicar_votantes_de_bloque(db)
+    db.commit()
+
+    propia = (
+        db.query(UnidadElectoral)
+        .filter(
+            UnidadElectoral.tipo == TipoUnidadElectoral.MATRIMONIO_CONSAGRADO,
+            UnidadElectoral.referencia_id == matrimonio.id,
+        )
+        .one()
+    )
+    assert matrimonio.es_consagrado is True
+    assert propia.estado == EstadoUnidadElectoral.HABILITADA.value
+    assert bloque.votante_matrimonio_id == matrimonio.id
+    for celular in ("0961601236", "0961528076"):
+        unidades = {u.unidad_electoral_id for u in consultar_habilitacion(db, celular).unidades}
+        assert unidades == {propia.id, bloque.id}

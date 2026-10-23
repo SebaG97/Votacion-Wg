@@ -90,6 +90,7 @@ JEFES_DESIGNADOS: dict[str, tuple[str, str]] = {
 # educadores, por su grupo.
 MATRIMONIOS_REACTIVADOS: list[tuple[str, str]] = [
     ("VERA", "MARTINEZ"),  # educadores de POSTULANTES 2026 D
+    ("MORALES", "HELMAN"),  # CIRCULO 46, educadores de POSTULANTES 2023 F (23/10)
 ]
 
 # Incidencias que solo dicen "este circulo no tiene jefe": dejan de bloquear
@@ -209,7 +210,8 @@ def _reactivar_matrimonios(db: Session, incidencias_criticas_pendientes) -> None
         matrimonio = _matrimonio_por_apellidos(db, apellidos)
         if matrimonio is None:
             continue
-        for persona in db.query(Persona).filter(Persona.matrimonio_id == matrimonio.id):
+        personas = db.query(Persona).filter(Persona.matrimonio_id == matrimonio.id).all()
+        for persona in personas:
             persona.estado = EstadoPersona.ACTIVA
             persona.observacion_baja = None
         db.flush()
@@ -221,6 +223,29 @@ def _reactivar_matrimonios(db: Session, incidencias_criticas_pendientes) -> None
             )
             .one_or_none()
         )
+        # Un matrimonio No ML puede venir sin marca de consagrado ni de sin
+        # consagracion, y entonces el importador no le crea unidad. Los
+        # reactivados votan como consagrados, asi que se la crea aca y la
+        # incidencia de consagracion sin definir queda resuelta.
+        if unidad is None:
+            matrimonio.es_consagrado = True
+            for incidencia in db.query(IncidenciaPadron).filter(
+                IncidenciaPadron.persona_id.in_([p.id for p in personas]),
+                IncidenciaPadron.tipo == TipoIncidenciaPadron.CONSAGRACION_SIN_DEFINIR,
+                IncidenciaPadron.resuelto_at.is_(None),
+            ):
+                incidencia.resuelto_por = USUARIO_REGLA
+                incidencia.resuelto_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+            unidad = UnidadElectoral(
+                tipo=TipoUnidadElectoral.MATRIMONIO_CONSAGRADO,
+                referencia_id=matrimonio.id,
+                grupo_id=matrimonio.grupo_id,
+                descripcion=f"Matrimonio consagrado: {matrimonio.codigo_externo or '(sin etiqueta)'}",
+                cantidad_personas_control=len(personas),
+                estado=EstadoUnidadElectoral.HABILITADA.value,
+            )
+            db.add(unidad)
+            db.flush()
         if unidad is not None:
             unidad.estado = (
                 EstadoUnidadElectoral.BLOQUEADA_POR_INCIDENCIA.value
