@@ -13,7 +13,7 @@ vi.mock("../api/votaciones", async () => {
 function resultados(): VotacionResultados {
   return {
     votacion_id: 1,
-    estado: "CERRADA",
+    estado: "RESULTADOS_REVELADOS",
     total_votos: 30,
     totales_por_opcion: [
       { opcion_id: 1, nombre: "Opción A", votos: 20, porcentaje: 66.67 },
@@ -43,8 +43,8 @@ function resultados(): VotacionResultados {
 /**
  * Graficos de `ResultadosView` (Mision 13, DEC-035): junto a cada una de las
  * 3 tablas existentes, alimentados por los mismos datos ya cargados (sin
- * fetch nuevo). Este componente solo se monta con estado CERRADA o
- * RESULTADOS_REVELADOS (sin cambios en esa condicion), asi que los 3
+ * fetch nuevo). Este componente solo se monta con estado
+ * RESULTADOS_REVELADOS (DEC-044) (sin cambios en esa condicion), asi que los 3
  * graficos heredan la misma garantia de DEC-022 que las tablas -- la
  * cobertura de "nunca por opcion mientras ABIERTA" vive en
  * `no-resultados-prematuros.test.tsx`, que ejercita `VotacionDetailPage`
@@ -54,7 +54,7 @@ describe("graficos de ResultadosView", () => {
   it("muestra un grafico por cada tabla, con los mismos valores", async () => {
     vi.mocked(votacionesApi.obtenerResultados).mockResolvedValue(resultados());
 
-    render(<ResultadosView votacionId={1} estado="CERRADA" onRevelado={() => {}} />);
+    render(<ResultadosView votacionId={1} />);
 
     await waitFor(() => expect(screen.getByTestId("chart-por-opcion")).toBeInTheDocument());
 

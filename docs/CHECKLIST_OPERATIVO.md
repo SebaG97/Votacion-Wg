@@ -87,8 +87,8 @@ Backup:
 
 - [ ] Confirmar con quien tiene la autoridad de negocio que corresponde
       cerrar antes de ejecutar `POST /votaciones/{id}/cerrar` -- el cierre
-      es el limite formal que habilita `GET /resultados` (DEC-022) y no es
-      reversible desde la API (no existe un "reabrir").
+      no es reversible desde la API (no existe un "reabrir"). Cerrar no
+      muestra resultados: siguen ocultos hasta revelar (DEC-044).
 - [ ] Backup inmediatamente despues del cierre, antes de revelar
       (`PLAN_BACKUP.md`).
 - [ ] Verificar el estado operativo final: votos emitidos vs. unidades
@@ -96,6 +96,11 @@ Backup:
       antes de comunicar nada.
 
 ## Revelar Resultados
+
+- [ ] Antes del evento, ensayar la presentacion con el proyector del salon
+      ("Ensayar presentacion", datos ficticios).
+- [ ] Revelar desde la PC conectada al proyector: "Revelar resultados en
+      vivo" abre la presentacion ahi mismo (DEC-044).
 
 - [ ] `POST /votaciones/{id}/revelar` solo despues de que quien tiene la
       autoridad de negocio confirme que corresponde comunicar el resultado

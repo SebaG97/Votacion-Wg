@@ -47,8 +47,10 @@ def _votacion_cerrada_con_una_opcion(db):
     return votacion, opcion
 
 
-@pytest.mark.parametrize("estado", [EstadoVotacion.BORRADOR, EstadoVotacion.ABIERTA])
-def test_resultados_bloqueados_en_borrador_o_abierta(db_session, estado):
+@pytest.mark.parametrize(
+    "estado", [EstadoVotacion.BORRADOR, EstadoVotacion.ABIERTA, EstadoVotacion.CERRADA]
+)
+def test_resultados_bloqueados_hasta_revelar(db_session, estado):
     votacion = Votacion(nombre="Consejo 2026", estado=estado)
     db_session.add(votacion)
     db_session.commit()
@@ -62,7 +64,7 @@ def test_resultados_404_si_la_votacion_no_existe(db_session):
         obtener_resultados(db_session, 9999)
 
 
-def test_resultados_con_votacion_cerrada_incluye_los_tres_desgloses(db_session):
+def test_resultados_revelados_incluye_los_tres_desgloses(db_session):
     votacion, opcion = _votacion_cerrada_con_una_opcion(db_session)
 
     grupo = _grupo(db_session, "CIRCULO 1")
@@ -72,10 +74,11 @@ def test_resultados_con_votacion_cerrada_incluye_los_tres_desgloses(db_session):
     _votar(db_session, votacion, unidad, opcion)
     db_session.commit()
 
+    revelar_resultados(db_session, votacion_id=votacion.id)
     resultado = obtener_resultados(db_session, votacion.id)
 
     assert resultado["votacion_id"] == votacion.id
-    assert resultado["estado"] == EstadoVotacion.CERRADA
+    assert resultado["estado"] == EstadoVotacion.RESULTADOS_REVELADOS
     assert resultado["total_votos"] == 1
     assert resultado["totales_por_opcion"] == [
         {"opcion_id": opcion.id, "nombre": "Lista A", "votos": 1, "porcentaje": 100.0}
@@ -113,7 +116,8 @@ def test_resultados_con_votacion_cerrada_incluye_los_tres_desgloses(db_session):
     )
 
 
-def test_resultados_con_resultados_revelados_mismo_contenido_que_cerrada(db_session):
+def test_resultados_cerrada_bloqueados_y_revelar_los_destraba(db_session):
+    """DEC-044: cerrar no muestra nada; revelar es lo que destraba los resultados."""
     votacion, opcion = _votacion_cerrada_con_una_opcion(db_session)
     grupo = _grupo(db_session, "CIRCULO 1")
     persona = _persona(db_session, "Ana", "Gomez", "0981000001", grupo_id=grupo.id)
@@ -122,16 +126,14 @@ def test_resultados_con_resultados_revelados_mismo_contenido_que_cerrada(db_sess
     _votar(db_session, votacion, unidad, opcion)
     db_session.commit()
 
-    antes = obtener_resultados(db_session, votacion.id)
+    with pytest.raises(ResultadosBloqueadosError):
+        obtener_resultados(db_session, votacion.id)
+
     revelar_resultados(db_session, votacion_id=votacion.id)
     despues = obtener_resultados(db_session, votacion.id)
 
-    assert despues["total_votos"] == antes["total_votos"]
-    assert despues["totales_por_opcion"] == antes["totales_por_opcion"]
-    assert despues["totales_por_tipo_unidad"] == antes["totales_por_tipo_unidad"]
-    assert despues["totales_por_grupo"] == antes["totales_por_grupo"]
+    assert despues["total_votos"] == 1
     assert despues["estado"] == EstadoVotacion.RESULTADOS_REVELADOS
-    assert antes["estado"] == EstadoVotacion.CERRADA
 
 
 def test_revelar_desde_cerrada_ok_setea_resultados_revelados_at(db_session):
@@ -197,6 +199,7 @@ def test_resultados_varias_opciones_y_tipos_de_unidad_los_tres_desgloses_suman_e
 
     cerrar_votacion(db_session, votacion_id=votacion.id, usuario="admin@wg")
 
+    revelar_resultados(db_session, votacion_id=votacion.id)
     resultado = obtener_resultados(db_session, votacion.id)
 
     assert resultado["total_votos"] == 3

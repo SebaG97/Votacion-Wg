@@ -9,6 +9,7 @@ import { ImportacionesPage } from "./routes/ImportacionesPage";
 import { IncidenciasPage } from "./routes/IncidenciasPage";
 import { LoginPage } from "./routes/LoginPage";
 import { PadronPage } from "./routes/PadronPage";
+import { PresentacionPage } from "./routes/PresentacionPage";
 import { VotacionDetailPage } from "./routes/VotacionDetailPage";
 
 export function App() {
@@ -39,6 +40,14 @@ export function App() {
               element={
                 <RequireAuth>
                   <VotacionDetailPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/votaciones/:id/presentacion"
+              element={
+                <RequireAuth sinShell>
+                  <PresentacionPage />
                 </RequireAuth>
               }
             />

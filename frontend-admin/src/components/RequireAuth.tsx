@@ -13,10 +13,20 @@ import { AdminShell } from "./AdminShell";
  * `notificarNoAutorizado()` en la primera llamada real y `AuthContext` lo
  * limpia, lo que hace que este componente vuelva a redirigir aca.
  */
-export function RequireAuth({ children }: { children: ReactNode }) {
+export function RequireAuth({
+  children,
+  sinShell = false,
+}: {
+  children: ReactNode;
+  /** Pantalla completa sin la barra del panel (presentacion en vivo, DEC-044). */
+  sinShell?: boolean;
+}) {
   const { token } = useAuth();
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+  if (sinShell) {
+    return <>{children}</>;
   }
   return <AdminShell>{children}</AdminShell>;
 }

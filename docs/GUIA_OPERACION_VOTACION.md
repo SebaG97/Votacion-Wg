@@ -77,7 +77,10 @@ nunca nada por opcion (DEC-022):
 - No hay ningun endpoint ni pantalla que muestre resultados por opcion en
   este estado -- `GET /resultados` y `POST /revelar` devuelven `409` si se
   intentan (`ResultadosBloqueadosError`), y el panel ni siquiera monta
-  `ResultadosView` mientras el estado no es `CERRADA`/`RESULTADOS_REVELADOS`.
+  `ResultadosView` mientras el estado no es `RESULTADOS_REVELADOS` (DEC-044).
+- La presentacion de resultados se puede ensayar en cualquier momento con
+  datos ficticios: pagina de detalle -> "Ensayar presentacion". Nunca pide
+  resultados reales y muestra la etiqueta "ENSAYO".
 
 ## 4. Cierre
 
@@ -88,19 +91,28 @@ nunca nada por opcion (DEC-022):
 - HTTP: `POST /api/v1/votaciones/{id}/cerrar` `{"usuario": "..."}`. `409` si
   no estaba `ABIERTA`.
 - Backup inmediato despues del cierre (`PLAN_BACKUP.md`).
-- A partir de este momento `GET /resultados` ya responde (no hace falta
-  revelar primero para consultarlo administrativamente, DEC-022), pero
-  sigue protegido por `require_admin`: el frontend de votantes nunca lo
-  llama (verificado por `frontend/src/test/no-resultados.test.ts`).
+- Cerrar NO muestra resultados (DEC-044): `GET /resultados` sigue dando
+  `409` hasta revelar, tambien para el panel administrativo. El panel solo
+  muestra cuantos votaron y ofrece "Revelar resultados en vivo" o "Ensayar
+  presentacion".
 
 ## 5. Revelar Resultados
 
-- Panel: pagina de detalle, seccion de resultados -> "Revelar" (solo
-  disponible con la votacion `CERRADA`).
+- Panel: pagina de detalle -> "Revelar resultados en vivo" (solo con la
+  votacion `CERRADA`). Pide confirmacion, revela y abre la presentacion a
+  pantalla completa (`/admin/votaciones/{id}/presentacion`). Conectar el
+  proyector antes. Controles: barra espaciadora, flecha derecha o clic para
+  avanzar; flecha izquierda para volver; `F` pantalla completa; la X de la
+  esquina vuelve al panel. Pasos: portada, participacion, conteo por
+  candidato (las barras suben a la misma velocidad, la de menos votos se
+  detiene antes) y ganador con confeti (si hay empate lo anuncia sin confeti).
+- Despues de revelar, la pagina de detalle tiene "Abrir presentacion de
+  resultados" para volver a proyectarla, y la vista de resultados con tablas
+  y CSV.
 - HTTP: `POST /api/v1/votaciones/{id}/revelar`. `409` si no esta `CERRADA`,
   o si ya se revelo antes (cita la fecha de la revelacion anterior).
-- Es un hito deliberado y separado del cierre (DEC-022): sirve para
-  distinguir "cerrada pero todavia no comunicada" de "ya anunciada".
+- Es un hito deliberado y separado del cierre (DEC-022) y, desde DEC-044,
+  el primer momento en que alguien ve los resultados.
 - Exportar el CSV para archivo: `GET /votaciones/{id}/resultados?formato=csv`
   (mismo header `X-Admin-Token`).
 - Los tres desgloses (`totales_por_opcion`, `totales_por_tipo_unidad`,

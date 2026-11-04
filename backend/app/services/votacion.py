@@ -56,9 +56,9 @@ class ResultadosYaReveladosError(RuntimeError):
 
 
 class ResultadosBloqueadosError(RuntimeError):
-    """Los resultados solo se pueden consultar con `estado` CERRADA o RESULTADOS_REVELADOS
-    (DEC-022): mientras la votacion esta en BORRADOR o ABIERTA, REGLAS_NEGOCIO.md prohibe
-    exponer ningun conteo por opcion."""
+    """Los resultados solo se pueden consultar con `estado` RESULTADOS_REVELADOS
+    (DEC-022, DEC-044): en BORRADOR, ABIERTA o CERRADA no se expone ningun conteo
+    por opcion. Cerrar corta la votacion; los resultados se ven recien al revelar."""
 
 
 class OpcionNoEncontradaError(RuntimeError):
@@ -306,10 +306,10 @@ def obtener_estado_operativo(db: Session, votacion_id: int) -> dict:
 
 
 def revelar_resultados(db: Session, *, votacion_id: int) -> Votacion:
-    """Hito formal de DEC-022: pasa la votacion de CERRADA a RESULTADOS_REVELADOS
-    y sella `resultados_revelados_at`. No cambia que devuelve `obtener_resultados`
-    (ya funciona en CERRADA); es la marca que distingue "cerrada pero todavia no
-    comunicada" de "ya anunciada" para uso administrativo futuro."""
+    """Pasa la votacion de CERRADA a RESULTADOS_REVELADOS y sella
+    `resultados_revelados_at` (DEC-022, DEC-044). Desde DEC-044 es lo unico que
+    destraba `obtener_resultados`: cerrar solo corta la votacion, y los
+    resultados se ven por primera vez al revelar, en la presentacion en vivo."""
     votacion = _obtener_votacion(db, votacion_id)
     if votacion.estado == EstadoVotacion.RESULTADOS_REVELADOS:
         raise ResultadosYaReveladosError(
@@ -332,8 +332,8 @@ def revelar_resultados(db: Session, *, votacion_id: int) -> Votacion:
 def obtener_resultados(db: Session, votacion_id: int) -> dict:
     """Resultados por opcion, por tipo de unidad electoral y por grupo (DEC-022).
 
-    Solo disponible con `estado` CERRADA o RESULTADOS_REVELADOS -- con
-    BORRADOR o ABIERTA se rechaza antes de calcular nada. Los conteos se
+    Solo disponible con `estado` RESULTADOS_REVELADOS (DEC-044) -- con
+    BORRADOR, ABIERTA o CERRADA se rechaza antes de calcular nada. Los conteos se
     calculan siempre a partir de las filas de `Voto` de esta votacion, nunca
     de `UnidadElectoral.estado` (ese campo es de elegibilidad, no de
     resultados): las "unidades habilitadas" que se reportan como denominador
@@ -344,9 +344,9 @@ def obtener_resultados(db: Session, votacion_id: int) -> dict:
     individual de esa unidad.
     """
     votacion = _obtener_votacion(db, votacion_id)
-    if votacion.estado not in (EstadoVotacion.CERRADA, EstadoVotacion.RESULTADOS_REVELADOS):
+    if votacion.estado != EstadoVotacion.RESULTADOS_REVELADOS:
         raise ResultadosBloqueadosError(
-            f"Resultados bloqueados hasta el cierre (estado actual "
+            f"Resultados bloqueados hasta que se revelen (estado actual "
             f"'{votacion.estado.value}')."
         )
 

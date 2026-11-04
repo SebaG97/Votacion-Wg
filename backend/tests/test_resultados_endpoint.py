@@ -108,7 +108,7 @@ def test_get_resultados_bloqueado_con_votacion_abierta(migrated_db_url, monkeypa
         _liberar(engine)
 
 
-def test_get_resultados_200_con_votacion_cerrada_y_revelar_luego(migrated_db_url, monkeypatch):
+def test_get_resultados_409_con_cerrada_y_200_tras_revelar(migrated_db_url, monkeypatch):
     monkeypatch.setattr(settings, "admin_api_key", ADMIN_TOKEN)
     client, engine = _cliente_con_db(migrated_db_url)
     try:
@@ -131,6 +131,19 @@ def test_get_resultados_200_con_votacion_cerrada_y_revelar_luego(migrated_db_url
         )
         assert cerrar.status_code == 200
 
+        # DEC-044: cerrar no muestra resultados, ni siquiera al admin.
+        bloqueado_cerrada = client.get(
+            f"/api/v1/votaciones/{votacion_id}/resultados", headers=_headers()
+        )
+        assert bloqueado_cerrada.status_code == 409
+
+        revelar = client.post(
+            f"/api/v1/votaciones/{votacion_id}/revelar", headers=_headers()
+        )
+        assert revelar.status_code == 200
+        assert revelar.json()["estado"] == "RESULTADOS_REVELADOS"
+        assert revelar.json()["resultados_revelados_at"] is not None
+
         respuesta = client.get(
             f"/api/v1/votaciones/{votacion_id}/resultados", headers=_headers()
         )
@@ -147,19 +160,6 @@ def test_get_resultados_200_con_votacion_cerrada_y_revelar_luego(migrated_db_url
         assert any(
             fila["votos_emitidos"] == 1 for fila in body["totales_por_grupo"]
         )
-
-        revelar = client.post(
-            f"/api/v1/votaciones/{votacion_id}/revelar", headers=_headers()
-        )
-        assert revelar.status_code == 200
-        assert revelar.json()["estado"] == "RESULTADOS_REVELADOS"
-        assert revelar.json()["resultados_revelados_at"] is not None
-
-        respuesta_revelada = client.get(
-            f"/api/v1/votaciones/{votacion_id}/resultados", headers=_headers()
-        )
-        assert respuesta_revelada.status_code == 200
-        assert respuesta_revelada.json()["totales_por_opcion"] == body["totales_por_opcion"]
 
         revelar_de_nuevo = client.post(
             f"/api/v1/votaciones/{votacion_id}/revelar", headers=_headers()
@@ -206,6 +206,7 @@ def test_get_resultados_formato_csv(migrated_db_url, monkeypatch):
             json={"usuario": "admin@wg"},
             headers=_headers(),
         )
+        client.post(f"/api/v1/votaciones/{votacion_id}/revelar", headers=_headers())
 
         respuesta = client.get(
             f"/api/v1/votaciones/{votacion_id}/resultados?formato=csv", headers=_headers()

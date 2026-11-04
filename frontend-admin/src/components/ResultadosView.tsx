@@ -4,32 +4,26 @@ import { Loader2 } from "lucide-react";
 import {
   obtenerResultados,
   obtenerResultadosCsv,
-  revelarResultados,
   type VotacionResultados,
 } from "../api/votaciones";
 import { mensajeDeError } from "../lib/errores";
-import { traducirErrorVotacion } from "../lib/erroresVotacion";
 import { BarChart } from "./charts/BarChart";
 
 type ResultadosViewProps = {
   votacionId: number;
-  estado: "CERRADA" | "RESULTADOS_REVELADOS";
-  onRevelado: () => void;
 };
 
 /**
  * Vista de resultados finales (Mision 10). El componente que la monta
  * (`VotacionDetailPage`) es responsable de solo renderizarla con `estado`
- * CERRADA o RESULTADOS_REVELADOS -- REGLAS_NEGOCIO.md prohibe exponer un
- * desglose por opcion antes del cierre, y esta vista nunca debe montarse
- * (ni oculta en el DOM) fuera de esos dos estados. El tipo de `estado` en
- * `ResultadosViewProps` ya excluye BORRADOR/ABIERTA en tiempo de compilacion.
+ * RESULTADOS_REVELADOS (DEC-044) -- antes de revelar nadie ve un desglose
+ * por opcion, y esta vista nunca debe montarse (ni oculta en el DOM) en otro
+ * estado. Revelar ya no vive aca: es el boton de la votacion CERRADA en
+ * `VotacionDetailPage`, que abre la presentacion en vivo.
  */
-export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosViewProps) {
+export function ResultadosView({ votacionId }: ResultadosViewProps) {
   const [resultados, setResultados] = useState<VotacionResultados | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [revelando, setRevelando] = useState(false);
-  const [errorRevelar, setErrorRevelar] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
   const [errorCsv, setErrorCsv] = useState<string | null>(null);
 
@@ -47,19 +41,6 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
     void cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [votacionId]);
-
-  async function handleRevelar() {
-    setRevelando(true);
-    setErrorRevelar(null);
-    try {
-      await revelarResultados(votacionId);
-      onRevelado();
-    } catch (err) {
-      setErrorRevelar(traducirErrorVotacion(err));
-    } finally {
-      setRevelando(false);
-    }
-  }
 
   async function handleDescargarCsv() {
     setDescargando(true);
@@ -83,31 +64,6 @@ export function ResultadosView({ votacionId, estado, onRevelado }: ResultadosVie
     <section className="panel ancho">
       <p className="eyebrow">Resultados finales</p>
       <h1>Resultados</h1>
-
-      {estado === "CERRADA" && (
-        <div className="warning-banner">
-          Votación cerrada pero todavía no comunicada. "Revelar" es un hito administrativo
-          formal; no cambia lo que ya podés ver acá.
-        </div>
-      )}
-
-      {errorRevelar && (
-        <p className="error-message" role="alert">
-          {errorRevelar}
-        </p>
-      )}
-
-      {estado === "CERRADA" && (
-        <button
-          type="button"
-          className="primary-button"
-          disabled={revelando}
-          onClick={() => void handleRevelar()}
-        >
-          {revelando ? <Loader2 size={18} className="spin" /> : null}
-          {revelando ? "Revelando..." : "Revelar resultados"}
-        </button>
-      )}
 
       {error && (
         <div>

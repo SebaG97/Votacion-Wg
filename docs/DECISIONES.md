@@ -527,3 +527,16 @@ Contexto: el importador tomaba cualquier texto en la columna de observacion como
 Decision: una observacion que menciona una fusion no da de baja (`OBSERVACIONES_QUE_NO_SON_BAJA` en el importador). La migracion `b8c9d0e1f2a3` devuelve a `ACTIVA` a quienes ya estaban cargados con esa observacion y recalcula sus unidades. Ademas, la consulta por celular de una persona de baja muestra "Figuras de baja en el padron" en lugar de "no esta en el padron".
 
 Consecuencias: Ana Lucia Aveiro vuelve a poder votar el bloque de Circulo 2020 "D" junto con su esposo; el total de unidades habilitadas no cambia.
+
+## DEC-044 - Cerrar No Muestra Resultados; Revelar Abre La Presentacion En Vivo
+
+Fecha: 2026-11-04
+
+Contexto: los resultados se van a revelar en vivo, en un salon con los votantes presentes, al dia siguiente del cierre. Con DEC-022, apenas se cerraba la votacion el panel mostraba los resultados completos y "Revelar" era solo una marca administrativa, asi que quien cerraba ya sabia quien gano. Sebad pidio que cerrar sea solo dejar de recibir votos y que revelar muestre los resultados en vivo, con graficos y algo llamativo.
+
+Decision:
+- `GET /votaciones/{id}/resultados` (y su CSV) solo responde con `estado = RESULTADOS_REVELADOS`; en `CERRADA` da `409` como en `BORRADOR` y `ABIERTA`. Reemplaza el punto 1 de DEC-022 en lo que respecta a consultar en `CERRADA`; el resto de DEC-022 (revelar solo desde `CERRADA`, no cruzar grupo por opcion) sigue igual. No hay cambios de esquema ni migraciones.
+- El panel, en `CERRADA`, muestra solo cuantos votaron y dos botones: "Revelar resultados en vivo" (confirma, revela y abre la presentacion) y "Ensayar presentacion" (datos ficticios, nunca llama a `/resultados`). `ResultadosView` se monta solo en `RESULTADOS_REVELADOS`.
+- Presentacion en `/votaciones/{id}/presentacion` del panel, sin la barra del panel, avanzada por quien presenta: portada, participacion, conteo por candidato con fotos y ganador con confeti. Sin librerias nuevas.
+
+Consecuencias: nadie puede revisar el resultado antes del evento; si hiciera falta, el respaldo de la base (`PLAN_BACKUP.md`) sigue teniendo los votos. Pruebas: `backend/tests/test_resultados*.py`, `frontend-admin/src/test/no-resultados-prematuros.test.tsx` y `frontend-admin/src/test/presentacion.test.tsx`.

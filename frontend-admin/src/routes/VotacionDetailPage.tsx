@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, HelpCircle, Loader2, Vote } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  EyeOff,
+  HelpCircle,
+  Loader2,
+  MonitorPlay,
+  Sparkles,
+  Vote,
+} from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { listarImportaciones, type ImportacionPadron } from "../api/padron";
@@ -10,6 +20,7 @@ import {
   listarOpciones,
   listarVotaciones,
   obtenerEstadoOperativo,
+  revelarResultados,
   type Opcion,
   type Votacion,
   type VotacionEstado,
@@ -125,6 +136,28 @@ export function VotacionDetailPage() {
     }
   }
 
+  async function handleRevelar() {
+    if (ejecutandoAccion) return;
+    // Revelar es irreversible y es el primer momento en que alguien ve los
+    // resultados (DEC-044): conviene hacerlo con el proyector ya conectado.
+    if (
+      !window.confirm(
+        `¿Revelar los resultados de "${votacion?.nombre ?? ""}"? Se abre la presentación en pantalla completa. No se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    setEjecutandoAccion(true);
+    setAccionError(null);
+    try {
+      await revelarResultados(votacionId);
+      navigate(`/votaciones/${votacionId}/presentacion`);
+    } catch (err) {
+      setAccionError(traducirErrorVotacion(err));
+      setEjecutandoAccion(false);
+    }
+  }
+
   if (error) {
     return (
       <section className="panel ancho">
@@ -156,6 +189,40 @@ export function VotacionDetailPage() {
         <h1>
           {votacion.nombre} <EstadoBadge estado={votacion.estado} />
         </h1>
+
+        {votacion.estado === "CERRADA" && (
+          <div className="revelar-panel">
+            <p className="eyebrow">
+              <EyeOff size={14} /> Resultados ocultos
+            </p>
+            <h2>La votación está cerrada</h2>
+            <p>
+              Ya nadie puede votar. Se emitieron <strong>{estadoOperativo.votos_emitidos}</strong>{" "}
+              votos, pero nadie ve los resultados (tampoco desde este panel) hasta revelarlos.
+            </p>
+            <p className="hint-text">
+              Revelar abre una presentación a pantalla completa para proyectar en el salón. Avanzá
+              con la barra espaciadora o con un clic. Conectá el proyector antes de revelar.
+            </p>
+            <div className="revelar-acciones">
+              <button
+                type="button"
+                className="primary-button revelar-button"
+                disabled={ejecutandoAccion}
+                onClick={() => void handleRevelar()}
+              >
+                <Sparkles size={18} /> Revelar resultados en vivo
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => navigate(`/votaciones/${votacion.id}/presentacion?ensayo=1`)}
+              >
+                <MonitorPlay size={18} /> Ensayar presentación (datos ficticios)
+              </button>
+            </div>
+          </div>
+        )}
 
         <h2>Estado operativo</h2>
         <dl className="stat-grid">
@@ -365,8 +432,38 @@ export function VotacionDetailPage() {
         )}
       </section>
 
-      {(votacion.estado === "CERRADA" || votacion.estado === "RESULTADOS_REVELADOS") && (
-        <ResultadosView votacionId={votacion.id} estado={votacion.estado} onRevelado={cargar} />
+      {/* DEC-044: cerrar NO muestra resultados. En CERRADA solo se ofrece
+          revelar (que abre la presentacion en vivo) o ensayarla con datos
+          ficticios; `ResultadosView` se monta recien en RESULTADOS_REVELADOS. */}
+      {votacion.estado === "ABIERTA" && (
+        <section className="panel ancho">
+          <p className="hint-text">
+            ¿Querés probar el proyector? La presentación de resultados se puede ensayar con datos
+            ficticios sin ver ningún resultado real.
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => navigate(`/votaciones/${votacion.id}/presentacion?ensayo=1`)}
+          >
+            <MonitorPlay size={18} /> Ensayar presentación (datos ficticios)
+          </button>
+        </section>
+      )}
+
+      {votacion.estado === "RESULTADOS_REVELADOS" && (
+        <>
+          <section className="panel ancho">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => navigate(`/votaciones/${votacion.id}/presentacion`)}
+            >
+              <MonitorPlay size={18} /> Abrir presentación de resultados
+            </button>
+          </section>
+          <ResultadosView votacionId={votacion.id} />
+        </>
       )}
     </>
   );

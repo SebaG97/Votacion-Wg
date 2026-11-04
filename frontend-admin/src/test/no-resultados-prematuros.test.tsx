@@ -61,8 +61,9 @@ function renderDetalle() {
  * esta CERRADA o RESULTADOS_REVELADOS, y que la vista de resultados ni
  * siquiera se monta (nunca oculta en el DOM).
  */
-describe("los resultados finales solo se consultan con la votacion CERRADA o RESULTADOS_REVELADOS", () => {
+describe("los resultados finales solo se consultan con la votacion RESULTADOS_REVELADOS", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(padronApi.listarImportaciones).mockResolvedValue([]);
     vi.mocked(votacionesApi.listarOpciones).mockResolvedValue([]);
   });
@@ -93,25 +94,32 @@ describe("los resultados finales solo se consultan con la votacion CERRADA o RES
     },
   );
 
-  it("con estado CERRADA si llama a obtenerResultados y muestra la vista", async () => {
+  it("con estado CERRADA no llama a obtenerResultados: solo ofrece revelar o ensayar (DEC-044)", async () => {
     vi.mocked(votacionesApi.listarVotaciones).mockResolvedValue([votacion("CERRADA")]);
     vi.mocked(votacionesApi.obtenerEstadoOperativo).mockResolvedValue(estadoOperativo("CERRADA"));
-    vi.mocked(votacionesApi.obtenerResultados).mockResolvedValue({
-      votacion_id: 1,
-      estado: "CERRADA",
-      total_votos: 0,
-      totales_por_opcion: [],
-      totales_por_tipo_unidad: [],
-      totales_por_grupo: [],
-    });
 
     renderDetalle();
 
-    await waitFor(() => expect(votacionesApi.obtenerResultados).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("Resultados finales")).toBeInTheDocument();
-    expect(screen.getByTestId("chart-por-opcion")).toBeInTheDocument();
-    expect(screen.getByTestId("chart-por-tipo-unidad")).toBeInTheDocument();
-    expect(screen.getByTestId("chart-por-circulo")).toBeInTheDocument();
+    await screen.findByText("La votación está cerrada");
+    expect(screen.getByRole("button", { name: /revelar resultados en vivo/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ensayar presentación/i })).toBeInTheDocument();
+    expect(votacionesApi.obtenerResultados).not.toHaveBeenCalled();
+    expect(votacionesApi.revelarResultados).not.toHaveBeenCalled();
+    expect(screen.queryByText("Resultados finales")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chart-por-opcion")).not.toBeInTheDocument();
+  });
+
+  it("revelar pide confirmacion y, si se cancela, no revela", async () => {
+    vi.mocked(votacionesApi.listarVotaciones).mockResolvedValue([votacion("CERRADA")]);
+    vi.mocked(votacionesApi.obtenerEstadoOperativo).mockResolvedValue(estadoOperativo("CERRADA"));
+    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderDetalle();
+    (await screen.findByRole("button", { name: /revelar resultados en vivo/i })).click();
+
+    expect(confirmar).toHaveBeenCalled();
+    expect(votacionesApi.revelarResultados).not.toHaveBeenCalled();
+    confirmar.mockRestore();
   });
 
   it("con estado RESULTADOS_REVELADOS si llama a obtenerResultados y no ofrece revelar de nuevo", async () => {
@@ -133,6 +141,9 @@ describe("los resultados finales solo se consultan con la votacion CERRADA o RES
     renderDetalle();
 
     await waitFor(() => expect(votacionesApi.obtenerResultados).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Resultados finales")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-por-opcion")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /abrir presentación/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /revelar resultados/i })).not.toBeInTheDocument();
   });
 });

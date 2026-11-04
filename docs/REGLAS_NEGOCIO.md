@@ -48,5 +48,6 @@ Mientras la votacion este abierta:
 
 Despues del cierre:
 
-- Los resultados pueden revelarse si la votacion tiene estado `CERRADA`.
+- Cerrar solo corta la votacion: nadie puede votar mas y nadie ve resultados, tampoco el panel administrativo (DEC-044).
+- Los resultados se ven por primera vez al revelarlos, que solo se puede hacer con la votacion en estado `CERRADA`. Revelar abre una presentacion en vivo para proyectar ante los votantes.
 - La auditoria debe conservar fecha, hora y usuario que ejecuto el cierre.
